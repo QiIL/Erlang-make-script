@@ -2,3 +2,4 @@
 ./lib/mysql-otp
 ./lib/mysql-otp-poolboy
 ./lib/poolboy
+.idea

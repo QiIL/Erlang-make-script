@@ -1,17 +1,17 @@
 %%============================
 %% 编译所有文件
 %%============================
--module(mmake).
+-module(easy_make).
 -include_lib("kernel/include/file.hrl").
+-define(MSG(__Format, __Arg), io:format("[~s:~w]:" ++ __Format, [?MODULE,?LINE|__Arg])).
+-define(EASY_MAKE_CONFIG, "./script/easy_make.config").
 -export([
     all/0
 ]).
-
--define(MSG(__Format, __Arg), io:format("[~s:~w]:" ++ __Format, [?MODULE,?LINE|__Arg])).
 %% 根据Emakefile编译所有的源码输出到./bin
 all() ->
     init(),
-    {ok, List} = file:consult("./emakefile"),
+    {ok, List} = file:consult(get_emakefile()),
     case make_all(List) of
         error ->
             dump_meta(),
@@ -24,8 +24,15 @@ all() ->
 
 %% 编译前的一些准备
 init() ->
+    load_make_config(),
     load_meta_config(),
     ok.
+
+%% 加载编译配置
+load_make_config() ->
+    ets:new(easy_make, [set, named_table, public, {read_concurrency, true}]),
+    {ok, List} = file:consult(?EASY_MAKE_CONFIG),
+    [ets:insert(easy_make, Tuple) || Tuple <- List].
 
 %% 加载文件编译记录
 load_meta_config() ->
@@ -36,10 +43,10 @@ load_meta_config() ->
                 {ok, _} ->
                     ok;
                 _Error ->
-                    ets:new(ets_meta_config, [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
+                    ets:new(get_meta_config_ets(), [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
             end;
         false ->
-            ets:new(ets_meta_config, [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
+            ets:new(get_meta_config_ets(), [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
     end.
 
 %% 编译所有的源文件
@@ -93,12 +100,17 @@ dump_meta() ->
 
 %% 把依赖的apps移动到对应文件夹
 move_lib_apps() ->
-    AppDir = get_lib_app_dir(),
-    {ok, Apps} = file:list_dir_all(AppDir),
+    AppDirs = get_lib_app_dirs(),
+    move_app_file(AppDirs).
+
+move_app_file([]) -> ok;
+move_app_file([AppDir | T]) ->
+    Apps = filelib:wildcard(AppDir + "/*.app"),
     BinDir = get_bin_dir(),
     [begin
-        file:copy(AppDir ++ "/" ++ File, BinDir ++ "/" ++ File)
-    end || File <- Apps].
+        file:copy(File, BinDir ++ (File -- AppDir))
+    end || File <- Apps],
+    move_app_file(T).
 
 %% =========================工具函数=================================
 %% 根据规则读取erl文件，按顺序返回
@@ -119,7 +131,7 @@ is_file_exists(File) ->
 get_file_status(File) ->
     case file:read_file_info(File) of
         {ok, #file_info{mtime = MTime}} ->
-            case ets:lookup(ets_meta_config, File) of
+            case ets:lookup(get_meta_config_ets(), File) of
                 [{_, MTime}] -> ignore;
                 [{_, OtherTime}] -> {need_compile, MTime, OtherTime};
                 _ -> {need_compile, MTime}
@@ -130,16 +142,33 @@ get_file_status(File) ->
 %% =========================文件以及目录==============================
 %% 源文件的编译记录, 格式为：{File, Time}
 get_meta_config_filename() ->
-    filename:absname(get_meta_dir() ++ "/ets_meta_config").
+    filename:absname(get_meta_dir() ++ "/" ++ erlang:atom_to_list(get_meta_config_ets())).
 get_meta_dir() ->
-    case init:get_argument(meta_root) of
-        {ok, [[Dir]]} -> Dir;
+    case ets:lookup(easy_make, meta_dir) of
+        [{_, Dir}] -> Dir;
         _ -> filename:absname("./script")
     end.
 
+%% emakefile的路径
+get_emakefile() ->
+    case ets:lookup(easy_make, emakefile) of
+        [{_, Dir}] -> Dir;
+        _ -> filename:absname("./emakefile")
+    end.
+
+%% 记录源文件时间的ets
+get_meta_config_ets() ->
+    case ets:lookup(easy_make, meta_ets_file) of
+        [{_, Atom}] -> Atom;
+        _ -> ets_meta_config
+    end.
+
 %% 依赖的apps目录
-get_lib_app_dir() ->
-    filename:absname("./lib/apps").
+get_lib_app_dirs() ->
+    case ets:lookup(easy_make, app_dirs) of
+        [{_, List}] -> [filename:absname(Dir) || Dir <- List];
+        _ -> []
+    end.
 
 %% ebin目录
 get_bin_dir() ->
