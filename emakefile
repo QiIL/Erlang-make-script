@@ -1,0 +1,16 @@
+{
+ [
+    "./lib/*/src/*",
+	"./src/*"
+ ],
+ [
+    {i, "./lib/mysql-otp/include"},
+ 	{i, "./include"},
+  	{outdir, "ebin"},
+	{inline_size, 30},
+	report,
+    debug_info,
+	warnings_as_errors,
+	verbose
+ ]
+}.
