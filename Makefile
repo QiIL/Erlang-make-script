@@ -8,6 +8,7 @@ SHELL_DIR := $(shell /bin/pwd)
 MMAKE_FILE := \"./script/easy_make.erl\"
 # 编译脚本文件的选项
 MAKE_OPTS := {inline_size, 30},report,debug_info,warnings_as_errors,verbose,{outdir,\"ebin\"}
+EASY_MAKE := easy_make
 ################################################################################
 
 # erlang 命令
@@ -27,4 +28,4 @@ init_make:
 # 使用erlang的make模块读取emakefile进行编译
 make_erl:
 	@$(ERL) -pa $(EBIN_DIRS) -noinput -eval "case make:files([$(MMAKE_FILE)], [$(MAKE_OPTS)]) of error -> halt(1); _ -> halt(0) end."
-	@erl -pa $(EBIN_DIRS) -noshell -eval 'case mmake:all() of error -> halt(1); _ -> halt(0) end.'
+	@erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):all() of error -> halt(1); _ -> halt(0) end.'

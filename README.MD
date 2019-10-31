@@ -16,6 +16,7 @@
 2. emakefile: emakefile的位置
 3. meta_ets_file: meta文件的名字: 默认为ete_meta_config
 4. app_dirs: app配置文件的位置，app文件会被一起移动到ebin目录下
+5. worker_num: 参与编译的工作进程数, 默认20个
 
 #### 文档结构
 ```

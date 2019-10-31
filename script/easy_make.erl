@@ -5,14 +5,18 @@
 -include_lib("kernel/include/file.hrl").
 -define(MSG(__Format, __Arg), io:format("[~s:~w]:" ++ __Format, [?MODULE,?LINE|__Arg])).
 -define(EASY_MAKE_CONFIG, "./script/easy_make.config").
+-define(DEFAULT_WORKER_NUM, 20).
 -export([
     all/0
 ]).
 %% 根据Emakefile编译所有的源码输出到./bin
 all() ->
     init(),
-    case make_all() of
+    case catch make_all() of
         error ->
+            dump_meta(),
+            error;
+        {error, _} ->
             dump_meta(),
             error;
         _ ->
@@ -52,13 +56,17 @@ load_meta_config() ->
 %% 把需要编译的文件放进队列
 load_make_queue() ->
     %% 先放进去的先编译
-    ets:new(make_queue, [named_table, public, order_set, {write_concurrency, true}, {read_concurrency, true}]),
+    ets:new(make_queue, [named_table, public, ordered_set, {write_concurrency, true}, {read_concurrency, true}]),
     {ok, List} = file:consult(get_emakefile()),
-    FileRules = get_all_file_rules(List),
-    Files = merge_rule_erl_file(FileRules, []),
-    insert_make_queue(Files, 1),
+    load_make_queue(List, 1, 1),
     ok.
-
+load_make_queue([], _, _) -> ok;
+load_make_queue([{Rules, Option} | T], OptionIndex, Count) ->
+    Files = merge_rule_erl_file(Rules, []),
+    %% 把文件的编译规则存一下
+    ets:insert(make_queue, {{option, OptionIndex}, Option}),
+    NewCount = insert_make_queue(Files, OptionIndex, Count),
+    load_make_queue(T, OptionIndex + 1, NewCount).
 
 %% 编译所有的源文件
 make_all() ->
@@ -67,16 +75,48 @@ make_all() ->
     [{_, Count}] = ets:lookup(make_queue, count),
     Worker = get_worker_num(Count),
     Ref = make_ref(),
+    PIDs = [start_worker(self(), Ref) || _ <- lists:seq(1, Worker)],
+    do_wait_worker(length(PIDs), Ref).
 
-    case recompile(Files, Option) of
-        ok -> make_all(T);
-        error -> error;
-        {error, _, _} -> error
+do_wait_worker(0, _) -> ok;
+do_wait_worker(N, Ref) ->
+    receive
+        {ack, Ref} ->
+            do_wait_worker(N - 1, Ref);
+        {error, Ref, F} ->
+            throw({error, F});
+        {'EXIT', _P, _Reason} ->
+            %% 还是会退出的，随便了
+            do_wait_worker(N, Ref);
+        _Other ->
+            ?MSG("receive unknown msg:~p~n", [_Other]),
+            do_wait_worker(N, Ref)
+    end.
+
+start_worker(Parent, Ref) ->
+    spawn_link(fun() -> worker_loop(Parent, Ref) end).
+
+worker_loop(Parent, Ref) ->
+    case pop_run_queue() of
+        {ok, File, Opt} ->
+            case recompile(File, Opt) of
+                error ->
+                    ?MSG("compile failed on ~s opts: ~p~n", [coerce_2_list(File), Opt]),
+                    Parent ! {error, Ref, File},
+                    exit(error);
+                {error, _, _} ->
+                    ?MSG("compile failed on ~s opts: ~p~n", [coerce_2_list(File), Opt]),
+                    Parent ! {error, Ref, File},
+                    exit(error);
+                _ -> worker_loop(Parent, Ref)
+            end;
+        _ ->
+            %% 没有要编译的文件了
+            Parent ! {ack, Ref}
     end.
 
 %% 根据文件的最新修改来编译文件
-recompile([], _) -> ok;
-recompile([File | T], Option) ->
+recompile(File, Option) ->
     case get_file_status(File) of
         {need_compile, MTime} ->
             ?MSG("recompile: ~s ~n", [File]),
@@ -85,7 +125,7 @@ recompile([File | T], Option) ->
                 {error, _, _} = _Err -> _Err;
                 _ ->
                     ets:insert(ets_meta_config, {File, MTime}),
-                    recompile(T, Option)
+                    ok
             end;
         {need_compile, MTime, OtherTime} ->
             ?MSG("recompile: ~s: ~p: ~p ~n", [File, MTime, OtherTime]),
@@ -94,9 +134,9 @@ recompile([File | T], Option) ->
                 {error, _, _} = _Err -> _Err;
                 _ ->
                     ets:insert(ets_meta_config, {File, MTime}),
-                    recompile(T, Option)
+                    ok
             end;
-        ignore -> recompile(T, Option);
+        ignore -> ok;
         error -> error
     end.
 
@@ -119,7 +159,7 @@ move_lib_apps() ->
 
 move_app_file([]) -> ok;
 move_app_file([AppDir | T]) ->
-    Apps = filelib:wildcard(AppDir + "/*.app"),
+    Apps = filelib:wildcard(AppDir ++ "/*.app"),
     BinDir = get_bin_dir(),
     [begin
         file:copy(File, BinDir ++ (File -- AppDir))
@@ -127,16 +167,6 @@ move_app_file([AppDir | T]) ->
     move_app_file(T).
 
 %% =========================工具函数=================================
-%% 聚合emakefile的所有匹配，按顺序返回
-get_all_file_rules(List) when is_list(List) ->
-    get_all_file_rules(List, []).
-get_all_file_rules([], List) -> lists:reverse(List);
-get_all_file_rules([{Rules, _Opt} | T], List) ->
-    NewList = lists:foldl(
-        fun(Rule, Acc) -> [Rule | Acc]
-    end, List, Rules),
-    get_all_file_rules(T, NewList).
-
 %% 根据规则读取erl文件，按顺序返回
 merge_rule_erl_file([], List) -> List;
 merge_rule_erl_file([Rule | T], List) ->
@@ -152,11 +182,12 @@ is_file_exists(File) ->
     end.
 
 %% 保存需要编译的文件队列
-insert_make_queue([], Count) ->
-    ets:insert(make_queue, {count, Count});
-insert_make_queue([F | T], Index) ->
-    ets:insert(make_queue, {Index, F}),
-    insert_make_queue(T, Index + 1).
+insert_make_queue([], _,  Count) ->
+    ets:insert(make_queue, {count, Count}),
+    Count;
+insert_make_queue([F | T], OptionIndex, Index) ->
+    ets:insert(make_queue, {Index, F, OptionIndex}),
+    insert_make_queue(T, OptionIndex, Index + 1).
 
 %% 弹出未编译的文件
 %% return {ok, File}
@@ -166,7 +197,9 @@ pop_run_queue() ->
 pop_run_queue(Count) ->
     Idx = ets:update_counter(make_queue, index, 1, {index, 0}),
     case ets:lookup(make_queue, Idx) of
-        [{_, F}] -> {ok, F};
+        [{_, F, OptIndex}] ->
+            [{_, Opt}] = ets:lookup(make_queue, {option, OptIndex}),
+            {ok, F, Opt};
         [] when Count =< Idx ->
             done;
         [] ->
@@ -185,6 +218,12 @@ get_file_status(File) ->
             end;
         _ -> error
     end.
+
+%% 转换字符串
+coerce_2_list(X) when is_atom(X) ->
+    atom_to_list(X);
+coerce_2_list(X) ->
+    X.
 
 %% =========================文件以及目录==============================
 %% 源文件的编译记录, 格式为：{File, Time}
@@ -222,7 +261,7 @@ get_worker_num(Num) ->
     case ets:lookup(easy_make, worker_num) of
         [{_, CfgNum}] ->
             erlang:min(CfgNum, Num);
-        _ -> Num
+        _ -> erlang:min(?DEFAULT_WORKER_NUM, Num)
     end.
 
 %% ebin目录
