@@ -18,14 +18,24 @@ h: help
 help:
 	@echo "用法:"
 	@echo "make all		        - 编译项目"
+	@echo "make config          - 编译配置"
 	@echo "make erl		        - 编译所有erlang代码"
 
-all: init_make make_erl
+# 命令
+all: init_make make_config make_erl
+config: make_config
+erl: make_erl
 
+# 执行的命令
 init_make:
 	@(mkdir -p ebin)
+	@$(ERL) -pa $(EBIN_DIRS) -noinput -eval "case make:files([$(MMAKE_FILE)], [$(MAKE_OPTS)]) of error -> halt(1); _ -> halt(0) end."
+
+# 动态生成配置文件
+make_config:
+	@echo "make config files"
+	@(escript ./script/gen_config.es)
 
 # 使用erlang的make模块读取emakefile进行编译
 make_erl:
-	@$(ERL) -pa $(EBIN_DIRS) -noinput -eval "case make:files([$(MMAKE_FILE)], [$(MAKE_OPTS)]) of error -> halt(1); _ -> halt(0) end."
 	@erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):all() of error -> halt(1); _ -> halt(0) end.'

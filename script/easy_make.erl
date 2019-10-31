@@ -21,8 +21,8 @@ all() ->
             error;
         _ ->
             after_make(),
-            ?MSG("cogratulation !! ~n", []),
-            ?MSG("make done!! ~n", [])
+            ?MSG("cogratulation !!!!!!!!!! ~n", []),
+            ?MSG("make done !!!!!!!!!! ~n", [])
     end.
 
 %% 编译前的一些准备
@@ -124,7 +124,7 @@ recompile(File, Option) ->
                 error -> error;
                 {error, _, _} = _Err -> _Err;
                 _ ->
-                    ets:insert(ets_meta_config, {File, MTime}),
+                    ets:insert(get_meta_config_ets(), {File, MTime}),
                     ok
             end;
         {need_compile, MTime, OtherTime} ->
@@ -133,7 +133,7 @@ recompile(File, Option) ->
                 error -> error;
                 {error, _, _} = _Err -> _Err;
                 _ ->
-                    ets:insert(ets_meta_config, {File, MTime}),
+                    ets:insert(get_meta_config_ets(), {File, MTime}),
                     ok
             end;
         ignore -> ok;
@@ -149,7 +149,7 @@ after_make() ->
 
 dump_meta() ->
     MetaFile = get_meta_config_filename(),
-    ok = ets:tab2file(ets_meta_config, MetaFile),
+    ok = ets:tab2file(get_meta_config_ets(), MetaFile),
     ok.
 
 %% 把依赖的apps移动到对应文件夹
