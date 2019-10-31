@@ -11,8 +11,7 @@
 %% 根据Emakefile编译所有的源码输出到./bin
 all() ->
     init(),
-    {ok, List} = file:consult(get_emakefile()),
-    case make_all(List) of
+    case make_all() of
         error ->
             dump_meta(),
             error;
@@ -26,6 +25,7 @@ all() ->
 init() ->
     load_make_config(),
     load_meta_config(),
+    load_make_queue(),
     ok.
 
 %% 加载编译配置
@@ -49,11 +49,25 @@ load_meta_config() ->
             ets:new(get_meta_config_ets(), [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
     end.
 
-%% 编译所有的源文件
-make_all([]) -> ok;
-make_all([{FileRules, Option} | T]) ->
+%% 把需要编译的文件放进队列
+load_make_queue() ->
+    %% 先放进去的先编译
+    ets:new(make_queue, [named_table, public, order_set, {write_concurrency, true}, {read_concurrency, true}]),
+    {ok, List} = file:consult(get_emakefile()),
+    FileRules = get_all_file_rules(List),
     Files = merge_rule_erl_file(FileRules, []),
-%%    ?MSG("Files:~p", [Files]),
+    insert_make_queue(Files, 1),
+    ok.
+
+
+%% 编译所有的源文件
+make_all() ->
+    %% spawn多个worker进行编译
+    %% 没那么多文件都不要那么多个进程啦
+    [{_, Count}] = ets:lookup(make_queue, count),
+    Worker = get_worker_num(Count),
+    Ref = make_ref(),
+
     case recompile(Files, Option) of
         ok -> make_all(T);
         error -> error;
@@ -113,6 +127,16 @@ move_app_file([AppDir | T]) ->
     move_app_file(T).
 
 %% =========================工具函数=================================
+%% 聚合emakefile的所有匹配，按顺序返回
+get_all_file_rules(List) when is_list(List) ->
+    get_all_file_rules(List, []).
+get_all_file_rules([], List) -> lists:reverse(List);
+get_all_file_rules([{Rules, _Opt} | T], List) ->
+    NewList = lists:foldl(
+        fun(Rule, Acc) -> [Rule | Acc]
+    end, List, Rules),
+    get_all_file_rules(T, NewList).
+
 %% 根据规则读取erl文件，按顺序返回
 merge_rule_erl_file([], List) -> List;
 merge_rule_erl_file([Rule | T], List) ->
@@ -125,6 +149,29 @@ is_file_exists(File) ->
             true;
         _Other ->
             false
+    end.
+
+%% 保存需要编译的文件队列
+insert_make_queue([], Count) ->
+    ets:insert(make_queue, {count, Count});
+insert_make_queue([F | T], Index) ->
+    ets:insert(make_queue, {Index, F}),
+    insert_make_queue(T, Index + 1).
+
+%% 弹出未编译的文件
+%% return {ok, File}
+pop_run_queue() ->
+    [{_, Count}] = ets:lookup(make_queue, count),
+    pop_run_queue(Count).
+pop_run_queue(Count) ->
+    Idx = ets:update_counter(make_queue, index, 1, {index, 0}),
+    case ets:lookup(make_queue, Idx) of
+        [{_, F}] -> {ok, F};
+        [] when Count =< Idx ->
+            done;
+        [] ->
+            %% 这一项任务丢失了?
+            pop_run_queue(Count)
     end.
 
 %% 对比编译文件的最新改动时间
@@ -168,6 +215,14 @@ get_lib_app_dirs() ->
     case ets:lookup(easy_make, app_dirs) of
         [{_, List}] -> [filename:absname(Dir) || Dir <- List];
         _ -> []
+    end.
+
+%% 获取编译进程的数量
+get_worker_num(Num) ->
+    case ets:lookup(easy_make, worker_num) of
+        [{_, CfgNum}] ->
+            erlang:min(CfgNum, Num);
+        _ -> Num
     end.
 
 %% ebin目录

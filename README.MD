@@ -1,10 +1,10 @@
 ### 根据emakefile把目录下的文件都编译到一个ebin文件夹的脚本
 
 #### TODO
--[X] 使用指南
--[X] 规定文档结构
--[X] 针对差异文件编译
--[] 多核编译
+- [X] 使用指南
+- [X] 规定文档结构
+- [X] 针对差异文件编译
+- [] 多核编译
 
 #### 使用与配置
 使用： 
@@ -12,7 +12,7 @@
 2. `make all`
 
 配置：
-1. meta_dir: meta文件存放的文治
+1. meta_dir: meta文件存放的位置
 2. emakefile: emakefile的位置
 3. meta_ets_file: meta文件的名字: 默认为ete_meta_config
 4. app_dirs: app配置文件的位置，app文件会被一起移动到ebin目录下
@@ -56,3 +56,4 @@
 使用ets保存文件的修改时间，下一次编译先比对，后编译。easy_make.config中有对应的配置：meta_ets_file & meta_dir
 
 #### 多核编译
+思路：把所有文件存到一个ets，然后新建多个worker编译文件，每一次编译都从ets中取出一个文件
