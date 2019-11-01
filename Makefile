@@ -38,4 +38,5 @@ make_config:
 
 # 使用erlang的make模块读取emakefile进行编译
 make_erl:
+	@echo "make erl"
 	@erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):all() of error -> halt(1); _ -> halt(0) end.'

@@ -62,6 +62,7 @@ load_make_queue() ->
     ok.
 load_make_queue([], _, _) -> ok;
 load_make_queue([{Rules, Option} | T], OptionIndex, Count) ->
+%%    ?MSG("FILE RULES: ~s~n", [Rules]),
     Files = merge_rule_erl_file(Rules, []),
     %% 把文件的编译规则存一下
     ets:insert(make_queue, {{option, OptionIndex}, Option}),
@@ -119,7 +120,7 @@ worker_loop(Parent, Ref) ->
 recompile(File, Option) ->
     case get_file_status(File) of
         {need_compile, MTime} ->
-            ?MSG("recompile: ~s ~n", [File]),
+            ?MSG("newcompile: ~s ~n", [File]),
             case compile:file(File, Option) of
                 error -> error;
                 {error, _, _} = _Err -> _Err;
@@ -127,8 +128,8 @@ recompile(File, Option) ->
                     ets:insert(get_meta_config_ets(), {File, MTime}),
                     ok
             end;
-        {need_compile, MTime, OtherTime} ->
-            ?MSG("recompile: ~s: ~p: ~p ~n", [File, MTime, OtherTime]),
+        {need_compile, MTime, _OtherTime} ->
+            ?MSG("recompile: ~s: ~n", [File]),
             case compile:file(File, Option) of
                 error -> error;
                 {error, _, _} = _Err -> _Err;
@@ -170,6 +171,7 @@ move_app_file([AppDir | T]) ->
 %% 根据规则读取erl文件，按顺序返回
 merge_rule_erl_file([], List) -> List;
 merge_rule_erl_file([Rule | T], List) ->
+%%    ?MSG("FILE RULE: ~s~n", [Rule]),
     FileList = filelib:wildcard(Rule ++ ".erl"),
     merge_rule_erl_file(T, List ++ FileList).
 
@@ -186,6 +188,7 @@ insert_make_queue([], _,  Count) ->
     ets:insert(make_queue, {count, Count}),
     Count;
 insert_make_queue([F | T], OptionIndex, Index) ->
+%%    ?MSG("INSERT FILE: ~s~n", [F]),
     ets:insert(make_queue, {Index, F, OptionIndex}),
     insert_make_queue(T, OptionIndex, Index + 1).
 
