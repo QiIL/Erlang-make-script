@@ -22,14 +22,24 @@ help:
 	@echo "make erl		        - 编译所有erlang代码"
 
 # 命令
-all: init_make make_config make_erl
+all: init_make make_lib make_proto make_config make_erl
 config: make_config
 erl: make_erl
+proto: make_proto
 
 # 执行的命令
 init_make:
 	@(mkdir -p ebin)
 	@$(ERL) -pa $(EBIN_DIRS) -noinput -eval "case make:files([$(MMAKE_FILE)], [$(MAKE_OPTS)]) of error -> halt(1); _ -> halt(0) end."
+
+# 生成协议
+make_proto:
+	@echo "make proto"
+	@(escript ./script/gen_proto.es)
+
+make_lib:
+	@echo "make library"
+	@(erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):make_lib() of error -> halt(1); _ -> halt(0) end.'
 
 # 动态生成配置文件
 make_config:
@@ -39,4 +49,4 @@ make_config:
 # 使用erlang的make模块读取emakefile进行编译
 make_erl:
 	@echo "make erl"
-	@erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):all() of error -> halt(1); _ -> halt(0) end.'
+	@erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):make_erl() of error -> halt(1); _ -> halt(0) end.'

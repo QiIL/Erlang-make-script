@@ -1,0 +1,57 @@
+syntax = "proto3";
+/*
+协议规则:
+client: server m_**_tos
+server: client m_**_toc
+协议内结构: p_**
+*/
+
+/*
+======== 通用p结构 =========
+p_kv,    int,    long
+p_kvi,   int,    int
+p_ks,    int,    string
+p_kb,    int,    bool
+p_kvl,   int,    [int]
+p_dkv,   long,   int
+p_kvll,  int,    [long]
+p_dks,   long,   string
+p_dkl,   long,   [int]
+p_kvt,   int,    int,    int
+p_kvlt,  int ,   int,    long
+p_lvt,   long,   int,    int
+p_item,  int,    int,    int
+p_update,  int,    int,    int,  int
+======== 通用p结构 =========
+
+*/
+message m_role_info_tos {
+}
+
+message m_role_info_toc {
+    int64 role_id = 1; // i am string
+}
+
+message p_kv {
+    int32 id = 1;
+    int64 val = 2;
+}
+
+message p_kvi {
+    int32 id = 1;
+    int32 val = 2;
+}
+
+message p_ks {
+    int32 id = 1;
+    bytes string = 2;
+}
+
+message p_kvl {
+    int32 id = 1;
+    string list = 2;
+}
+
+message m_test_tos {
+
+}

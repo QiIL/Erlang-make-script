@@ -6,6 +6,7 @@
 - [x] 针对差异文件编译
 - [x] 多核编译
 - [x] 根据配置文件在编译期动态生成配置代码
+- [ ] 编译google protobuf
 
 #### 使用与配置
 使用： 
@@ -51,6 +52,8 @@
 ├── README.MD
 ├── script
 │   ├── easy_make.erl %% 脚本
+│   ├── gen_config.es %% 脚本
+│   ├── gen_proto.es %% 脚本
 |   └── easy_make.config %% 编译脚本的配置
 └── src
     ├── test_app.erl
@@ -67,3 +70,9 @@ ets的update_counter保证了每一次进1，使得不同进程读取的文件�
 #### 根据配置文件在编译期动态生成配置代码
 `config/erl`下是配置的.erl文件，只导出一个函数`find`。利用erlang的代码分析树获取对应`find`函数下的所有`key-value`。然后根据自己写的规则生成对应新的配置文件,
 规则在`script/gen_config.es`下实现
+
+#### 编译google protobuf
+- 复制`gpb/bin/protoc-erl`的脚本到`script/gen_proto.es`
+- 进入gpb目录`make doc`生成`gpb_scan.erl`和`gpb_parse.erl`
+- 修改gpb_complie的get_priv_dir函数，使之可以获取到gpb下的priv目录
+- 使用easy_make编译`gpb的源码`运行`gen_proto.es`

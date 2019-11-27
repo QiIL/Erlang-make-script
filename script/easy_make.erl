@@ -7,11 +7,12 @@
 -define(EASY_MAKE_CONFIG, "./script/easy_make.config").
 -define(DEFAULT_WORKER_NUM, 20).
 -export([
-    all/0
+    make_erl/0
 ]).
 %% 根据Emakefile编译所有的源码输出到./bin
-all() ->
+make_erl() ->
     init(),
+    load_make_queue(erl),
     case catch make_all() of
         error ->
             dump_meta(),
@@ -29,7 +30,6 @@ all() ->
 init() ->
     load_make_config(),
     load_meta_config(),
-    load_make_queue(),
     ok.
 
 %% 加载编译配置
@@ -53,13 +53,18 @@ load_meta_config() ->
             ets:new(get_meta_config_ets(), [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
     end.
 
+
 %% 把需要编译的文件放进队列
-load_make_queue() ->
+%% lib 独立出来因为不常编译，不用放一起了
+%%
+load_make_queue(erl) ->
     %% 先放进去的先编译
     ets:new(make_queue, [named_table, public, ordered_set, {write_concurrency, true}, {read_concurrency, true}]),
     {ok, List} = file:consult(get_emakefile()),
     load_make_queue(List, 1, 1),
     ok.
+
+
 load_make_queue([], _, _) -> ok;
 load_make_queue([{Rules, Option} | T], OptionIndex, Count) ->
 %%    ?MSG("FILE RULES: ~s~n", [Rules]),

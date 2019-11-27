@@ -8,6 +8,8 @@
  [
     {i, "./lib/mysql-otp/include"},
  	{i, "./include"},
+ 	{i, "./lib/gbp/include"},
+ 	{i, "./lib/gpb/src"},
   	{outdir, "ebin"},
 	{inline_size, 30},
 	report,
