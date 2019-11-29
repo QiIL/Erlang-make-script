@@ -22,7 +22,7 @@ help:
 	@echo "make erl		        - 编译所有erlang代码"
 
 # 命令
-all: init_make make_lib make_proto make_config make_erl
+all: init_make make_lib make_proto make_config make_src deploy
 config: make_config
 erl: make_erl
 proto: make_proto
@@ -39,7 +39,7 @@ make_proto:
 
 make_lib:
 	@echo "make library"
-	@(erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):make_lib() of error -> halt(1); _ -> halt(0) end.'
+	@erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):make_lib() of error -> halt(1); _ -> halt(0) end.'
 
 # 动态生成配置文件
 make_config:
@@ -47,6 +47,12 @@ make_config:
 	@(escript ./script/gen_config.es)
 
 # 使用erlang的make模块读取emakefile进行编译
-make_erl:
+make_src:
 	@echo "make erl"
-	@erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):make_erl() of error -> halt(1); _ -> halt(0) end.'
+	@erl -pa $(EBIN_DIRS) -noshell -eval 'case $(EASY_MAKE):make_src() of error -> halt(1); _ -> halt(0) end.'
+
+deploy:
+	@echo "deploy"
+	@echo "move apps"
+	@cp ./lib/apps/*.app ./ebin/
+	@echo "deploy done"

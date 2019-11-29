@@ -7,30 +7,33 @@
 -define(EASY_MAKE_CONFIG, "./script/easy_make.config").
 -define(DEFAULT_WORKER_NUM, 20).
 -export([
-    make_erl/0
+    make_src/0,
+    make_lib/0
 ]).
 %% 根据Emakefile编译所有的源码输出到./bin
-make_erl() ->
-    init(),
-    load_make_queue(erl),
-    case catch make_all() of
+make_src() ->
+    normal_make(meta_src),
+    ?MSG("make src done ~n", []).
+
+make_lib() ->
+    ?MSG("make library ~n", []),
+    normal_make(meta_lib),
+    ?MSG("make library done ~n", []).
+
+normal_make(Meta) ->
+    load_make_config(),
+    load_meta_config(Meta),
+    load_make_queue(Meta),
+    case catch make_all(Meta) of
         error ->
-            dump_meta(),
+            dump_meta(Meta),
             error;
         {error, _} ->
-            dump_meta(),
+            dump_meta(Meta),
             error;
         _ ->
-            after_make(),
-            ?MSG("cogratulation !!!!!!!!!! ~n", []),
-            ?MSG("make done !!!!!!!!!! ~n", [])
+            after_make(Meta)
     end.
-
-%% 编译前的一些准备
-init() ->
-    load_make_config(),
-    load_meta_config(),
-    ok.
 
 %% 加载编译配置
 load_make_config() ->
@@ -39,25 +42,33 @@ load_make_config() ->
     [ets:insert(easy_make, Tuple) || Tuple <- List].
 
 %% 加载文件编译记录
-load_meta_config() ->
-    Filename = get_meta_config_filename(),
+load_meta_config(Meta) ->
+    ensure_meta_dir(),
+    Filename = get_meta_config_filename(Meta),
     case is_file_exists(Filename) of
         true ->
             case ets:file2tab(Filename) of
                 {ok, _} ->
                     ok;
                 _Error ->
-                    ets:new(get_meta_config_ets(), [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
+                    ets:new(get_meta_config_ets(Meta), [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
             end;
         false ->
-            ets:new(get_meta_config_ets(), [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
+            ets:new(get_meta_config_ets(Meta), [set, named_table, public, {read_concurrency, true}, {keypos, 1}])
     end.
 
 
 %% 把需要编译的文件放进队列
 %% lib 独立出来因为不常编译，不用放一起了
-%%
-load_make_queue(erl) ->
+load_make_queue(meta_lib) ->
+    ets:new(make_queue, [named_table, public, ordered_set, {write_concurrency, true}, {read_concurrency, true}]),
+    case ets:lookup(easy_make, lib_emake) of
+        [{_, List}] ->
+            load_make_queue(List, 1, 1);
+        _ -> erlang:throw(no_lib_make_config)
+    end,
+    ok;
+load_make_queue(meta_src) ->
     %% 先放进去的先编译
     ets:new(make_queue, [named_table, public, ordered_set, {write_concurrency, true}, {read_concurrency, true}]),
     {ok, List} = file:consult(get_emakefile()),
@@ -75,13 +86,13 @@ load_make_queue([{Rules, Option} | T], OptionIndex, Count) ->
     load_make_queue(T, OptionIndex + 1, NewCount).
 
 %% 编译所有的源文件
-make_all() ->
+make_all(Meta) ->
     %% spawn多个worker进行编译
     %% 没那么多文件都不要那么多个进程啦
     [{_, Count}] = ets:lookup(make_queue, count),
     Worker = get_worker_num(Count),
     Ref = make_ref(),
-    PIDs = [start_worker(self(), Ref) || _ <- lists:seq(1, Worker)],
+    PIDs = [start_worker(self(), Ref, Meta) || _ <- lists:seq(1, Worker)],
     do_wait_worker(length(PIDs), Ref).
 
 do_wait_worker(0, _) -> ok;
@@ -99,13 +110,13 @@ do_wait_worker(N, Ref) ->
             do_wait_worker(N, Ref)
     end.
 
-start_worker(Parent, Ref) ->
-    spawn_link(fun() -> worker_loop(Parent, Ref) end).
+start_worker(Parent, Ref, Meta) ->
+    spawn_link(fun() -> worker_loop(Parent, Ref, Meta) end).
 
-worker_loop(Parent, Ref) ->
+worker_loop(Parent, Ref, Meta) ->
     case pop_run_queue() of
         {ok, File, Opt} ->
-            case recompile(File, Opt) of
+            case recompile(File, Opt, Meta) of
                 error ->
                     ?MSG("compile failed on ~s opts: ~p~n", [coerce_2_list(File), Opt]),
                     Parent ! {error, Ref, File},
@@ -114,7 +125,7 @@ worker_loop(Parent, Ref) ->
                     ?MSG("compile failed on ~s opts: ~p~n", [coerce_2_list(File), Opt]),
                     Parent ! {error, Ref, File},
                     exit(error);
-                _ -> worker_loop(Parent, Ref)
+                _ -> worker_loop(Parent, Ref, Meta)
             end;
         _ ->
             %% 没有要编译的文件了
@@ -122,15 +133,15 @@ worker_loop(Parent, Ref) ->
     end.
 
 %% 根据文件的最新修改来编译文件
-recompile(File, Option) ->
-    case get_file_status(File) of
+recompile(File, Option, Meta) ->
+    case get_file_status(Meta, File) of
         {need_compile, MTime} ->
             ?MSG("newcompile: ~s ~n", [File]),
             case compile:file(File, Option) of
                 error -> error;
                 {error, _, _} = _Err -> _Err;
                 _ ->
-                    ets:insert(get_meta_config_ets(), {File, MTime}),
+                    ets:insert(get_meta_config_ets(Meta), {File, MTime}),
                     ok
             end;
         {need_compile, MTime, _OtherTime} ->
@@ -139,7 +150,7 @@ recompile(File, Option) ->
                 error -> error;
                 {error, _, _} = _Err -> _Err;
                 _ ->
-                    ets:insert(get_meta_config_ets(), {File, MTime}),
+                    ets:insert(get_meta_config_ets(Meta), {File, MTime}),
                     ok
             end;
         ignore -> ok;
@@ -148,29 +159,14 @@ recompile(File, Option) ->
 
 %% 完成编译后的额外操作
 %% 1.回写ets_meta_config
-after_make() ->
-    move_lib_apps(),
-    dump_meta(),
+after_make(Meta) ->
+    dump_meta(Meta),
     ok.
 
-dump_meta() ->
-    MetaFile = get_meta_config_filename(),
-    ok = ets:tab2file(get_meta_config_ets(), MetaFile),
+dump_meta(Meta) ->
+    MetaFile = get_meta_config_filename(Meta),
+    ok = ets:tab2file(get_meta_config_ets(Meta), MetaFile),
     ok.
-
-%% 把依赖的apps移动到对应文件夹
-move_lib_apps() ->
-    AppDirs = get_lib_app_dirs(),
-    move_app_file(AppDirs).
-
-move_app_file([]) -> ok;
-move_app_file([AppDir | T]) ->
-    Apps = filelib:wildcard(AppDir ++ "/*.app"),
-    BinDir = get_bin_dir(),
-    [begin
-        file:copy(File, BinDir ++ (File -- AppDir))
-    end || File <- Apps],
-    move_app_file(T).
 
 %% =========================工具函数=================================
 %% 根据规则读取erl文件，按顺序返回
@@ -216,10 +212,10 @@ pop_run_queue(Count) ->
     end.
 
 %% 对比编译文件的最新改动时间
-get_file_status(File) ->
+get_file_status(Meta, File) ->
     case file:read_file_info(File) of
         {ok, #file_info{mtime = MTime}} ->
-            case ets:lookup(get_meta_config_ets(), File) of
+            case ets:lookup(get_meta_config_ets(Meta), File) of
                 [{_, MTime}] -> ignore;
                 [{_, OtherTime}] -> {need_compile, MTime, OtherTime};
                 _ -> {need_compile, MTime}
@@ -235,12 +231,19 @@ coerce_2_list(X) ->
 
 %% =========================文件以及目录==============================
 %% 源文件的编译记录, 格式为：{File, Time}
-get_meta_config_filename() ->
-    filename:absname(get_meta_dir() ++ "/" ++ erlang:atom_to_list(get_meta_config_ets())).
+ensure_meta_dir() ->
+    Dir = get_meta_dir(),
+    case filelib:is_dir(filename:absname(Dir)) of
+        true -> ok;
+        false -> file:make_dir(filename:absname(Dir))
+    end.
+
+get_meta_config_filename(Meta) ->
+    filename:absname(get_meta_dir() ++ "/" ++ erlang:atom_to_list(get_meta_config_ets(Meta))).
 get_meta_dir() ->
     case ets:lookup(easy_make, meta_dir) of
         [{_, Dir}] -> Dir;
-        _ -> filename:absname("./script")
+        _ -> filename:absname("./script/meta")
     end.
 
 %% emakefile的路径
@@ -251,17 +254,10 @@ get_emakefile() ->
     end.
 
 %% 记录源文件时间的ets
-get_meta_config_ets() ->
-    case ets:lookup(easy_make, meta_ets_file) of
+get_meta_config_ets(Meta) ->
+    case ets:lookup(easy_make, Meta) of
         [{_, Atom}] -> Atom;
-        _ -> ets_meta_config
-    end.
-
-%% 依赖的apps目录
-get_lib_app_dirs() ->
-    case ets:lookup(easy_make, app_dirs) of
-        [{_, List}] -> [filename:absname(Dir) || Dir <- List];
-        _ -> []
+        _ -> erlang:throw(error)
     end.
 
 %% 获取编译进程的数量
@@ -271,7 +267,3 @@ get_worker_num(Num) ->
             erlang:min(CfgNum, Num);
         _ -> erlang:min(?DEFAULT_WORKER_NUM, Num)
     end.
-
-%% ebin目录
-get_bin_dir() ->
-    filename:absname("./ebin").

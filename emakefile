@@ -1,14 +1,15 @@
 {
  [
-    "./lib/*/src/*",
     "./config/erl/*",
     "./config/dyn/*",
-	"./src/*"
+	"./src/*",
+	"./src/*/*"
  ],
  [
     {i, "./lib/mysql-otp/include"},
  	{i, "./include"},
- 	{i, "./lib/gbp/include"},
+ 	{i, "./include/proto"},
+ 	{i, "./lib/gpb/include"},
  	{i, "./lib/gpb/src"},
   	{outdir, "ebin"},
 	{inline_size, 30},

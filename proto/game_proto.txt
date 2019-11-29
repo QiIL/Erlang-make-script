@@ -1,0 +1,135 @@
+%% coding: latin-1
+%% "~"字符一律不用，使用"-"代替
+%% name必须是m_xxx_tos|toc或者p_xx,
+%% TOS必须字段/TOC、p结构可选：router=>{gateway}, {role, mod_xx}
+%% 协议注释：note=>"XXX" 注释中目录名禁止使用"\"或"\\"，统一使用"/"
+%% 需要确保发送成功的协议，加入ack确认， 字段是 ack => 1, 如 m_fight_result_toc
+%% fields字段为可选字段 列表结构 [{字段, 类型, 注释}]
+%% fields下的类型可为 int、long、string、bool、p_xx、[int、long ····]列表
+%% toc可选字段：err_code=> [{num, 提示}]  列表结构，编译时会在error_no.hrl生成 ERROR_XXX_XXX_NUM宏定义
+%% 定义toc协议、p结构，如果不是大范围使用，推荐加上router =>, 会在include/proto/下生成对应的hrl。
+%% 没有加router的，record会默认在common_pb.hrl生成，toc对应的error_code会在include/proto/common_error_no.hrl里生成
+
+%%%% ======== 通用p结构 =========
+%% p_kv,    int,    long
+%% p_kvi,   int,    int
+%% p_ks,    int,    string
+%% p_kb,    int,    bool
+%% p_kvl,   int,    [int]
+%% p_dkv,   long,   int
+%% p_kvll,  int,    [long]
+%% p_dks,   long,   string
+%% p_dkl,   long,   [int]
+%% p_kvt,   int,    int,    int
+%% p_kvlt,  int ,   int,    long
+%% p_lvt,   long,   int,    int
+%% p_item,  int,    int,    int
+%% p_update,  int,    int,    int,  int
+%%%% ======== 通用p结构 =========
+
+{proto_list,  [
+#{name => m_system_hb_tos, router => gateway, note => "心跳包",
+    	fields => [
+        ]},
+
+#{name => m_system_hb_toc, router => gateway, note => "心跳包", ack => 0,
+    	fields => [
+    	 ]},
+
+#{name => m_system_time_toc, router => gateway, note => "时间同步包",  ack => 0,
+	fields => [
+	  {server_time,             int,                  ""}
+	 ]},
+
+#{name => m_system_error_toc, router => gateway, note => "提示各种系统错误",  ack => 0,
+    fields => [
+        {code,                           int,                            "前端根据该code进行相应操作，0是不需要重连，1是需要重新登录"},
+        {error_info,                     string,                         "错误文本"}
+    ],
+    err_code => [
+        {1,                                  "服务器维护",                     "TYPE_ALERT_RELOGIN"},
+        {2,                                  "获取玩家数据超时，请刷新游戏"},
+        {3,                                  "登录系统异常，请稍后再试"},
+        {4,                                  "未知登录系统错误"},
+        {5,                                  "您的网络不稳定",                     "TYPE_ALERT_RELOGIN"},
+        {6,                                  "您的消息过于繁忙"},
+        {7,                                  "您的网络已经断开，系统正尝试自动重连",          "TYPE_ALERT_RELOGIN"},
+        {8,                                  "你的IP地址禁止登录游戏"},
+        {9,                                  "创建角色进程失败"},
+        {10,                                 "未知系统错误"},
+        {11,                                 "TCP收到异常未知错误",                     "TYPE_ALERT_RELOGIN"},
+        {12,                                 "TCP连接遇到异常状态"},
+        {13,                                 "解析数据失败，使用了不合理的第三方工具",         "TYPE_ALERT_RELOGIN"},
+        {14,                                 "您的网络似乎很堵塞，请刷新游戏",                 "TYPE_ALERT_RELOGIN"},
+        {15,                                 "准备恢复您的数据，请下线耐心等待", "TYPE_ALERT_RELOGIN"},
+        {16,                                 "进入地图失败"},
+        {17,                                 "玩家创建角色数据丢失"},
+        {18,                                 "您已进入不健康游戏时间，请您暂离游戏进行适当休息和运动，合理安排您的游戏时间"},
+        {19,                                 "您被管理员踢下线",                       "TYPE_ALERT_RELOGIN"},
+        {20,                                 "此帐号已被禁止使用"},
+        {21,                                 "账号在别处登录",                         "TYPE_ALERT_RELOGIN"},
+        {22,                                 "等待玩家创建角色超时"},
+        {23,                                 "使用了不合法的第三方工具",               "TYPE_ALERT_RELOGIN"},
+        {24,                                 "您的累计在线时间已满5小时，请您稍后登录"},
+        {25,                                 "此服务器禁止创建角色，请选择其他服务器！"},
+        {26,                                 "登录流程状态错误，请刷新游戏",          "TYPE_ALERT_RELOGIN"},
+        {27,                                 "服务器入口尚未开启"},
+        {28,                                 "登录验证超时，请稍后再来",              "TYPE_ALERT_RELOGIN"},
+        {29,                                 "验证码错误，请重试"},
+        {30,                                 "网关名注册失败"},
+        {31,                                 "重登录失败，请稍后再来"},
+        {32,                                 "当前无法登录"},
+        {33,                                 "注册流程状态错误，请稍后再试",          "TYPE_ALERT_RELOGIN"},
+        {34,                                 "登录流程状态异常，请稍后再来",          "TYPE_ALERT_RELOGIN"},
+        {35,                                 "进入地图流程异常，请稍后再来",          "TYPE_ALERT_RELOGIN"},
+        {36,                                 "进入地图流程数据异常，请稍后再试",      "TYPE_ALERT_RELOGIN"},
+        {37,                                 "顶号超时"},
+        {38,                                 "禁止空账号名登录"},
+        {39,                                 "启动角色失败，服务器未开启",           "TYPE_ALERT_RELOGIN"},
+        {40,                                 "启动网关收到异常消息",                 "TYPE_ALERT_RELOGIN"},
+        {41,                                 "进程收到异常消息",                     "TYPE_ALERT_RELOGIN"},
+        {42,                                 "您的数据包过多，请刷新游戏再来",       "TYPE_ALERT_RELOGIN"},
+        {43,                                 "你的网络压力太大，请休息一下"},
+        {44,                                 "性别参数错误"},
+        {45,                                 "参数错误"},
+        {46,                                 "职业参数错误"},
+        {47,                                 "数据包过多"},
+        {48,                                 "此游客账号已绑定过，请登录"},
+        {49,                                 "登录严重错误，请联系客服"},
+        {50,                                 "登录严重错误，请联系客服，并提供您的帐号和出错时间"},
+        {51,                                 "服务器维护后要重新登录"},
+        {52,                                 "奥利吉奈尔区连接异常",               "TYPE_ALERT_RELOGIN"}
+    ]},
+
+#{name => m_common_error_toc, note => "通知前端弹各种错误",  ack => 0,
+    fields => [
+        {code,                          int,                            ""}
+    ],
+    err_code => [
+    ]},
+#{name => m_common_error2_toc, note => "通知前端弹各种错误", ack => 0,
+    fields => [
+        {code,                          int,                            ""},
+        {args,                          [string],                       "带参数，对应的err里面有~str，逐个替换"}
+    ],
+    err_code => [
+    ]},
+
+#{name => m_common_tips_toc, note => "通知前端弹各种TIPS",  ack => 0,
+    fields => [
+        {code,                          int,                            ""}
+    ],
+    err_code => [
+    ]},
+#{name => m_common_tips2_toc, note => "通知前端弹各种TIPS", ack => 0,
+    fields => [
+        {code,                          int,                            ""},
+        {args,                          [string],                       "带参数，对应的err里面有~str，逐个替换"}
+    ],
+    err_code => [
+    ]}
+]}.
+
+%% 通用错误配置
+{common_error_list, [
+     ]}.
