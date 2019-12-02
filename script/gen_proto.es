@@ -6,10 +6,12 @@
 -define(EASY_MAKE_CONFIG, "./script/easy_make.config").
 -define(GAME_PROTO, "./proto/game_proto.txt").
 -define(PROTO_IDS, "./proto/proto_id.txt").
+-define(GOOGLE_GAME_PROTO, "./proto/game_proto.proto").
 -define(ALL_CHECK_DIR, [
     "./src/proto/",
     "./include/proto/"
 ]).
+-define(ROLE_MOD_IGNORE_LIST, []).
 
 -define(MAP_KEY_NAME,    name).
 -define(MAP_KEY_NOTE,    note).
@@ -17,7 +19,6 @@
 -define(MAP_KEY_ROUTER,  router).
 -define(MAP_KEY_ERRCODE, err_code).
 -define(MAP_KEY_ACK, ack).
-
 
 -ifndef(IF).
 -define(IF(C, T, F), (case (C) of true -> (T); false -> (F) end)).
@@ -47,11 +48,10 @@ gen_all() ->
     check_error_no(ProtoList, ErrorList),
     io:format("~s success~n", ["check_error_no"]),
 
-%%    {CommonProtoList, HrlList, _RoleModList} = gen_hrl_list(ProtoList),
+    {CommonProtoList, HrlList, _RoleModList} = gen_hrl_list(ProtoList),
     FList =
         [
-%%            {fun() -> gen_proto_file(ProtoList) end, "gen_proto_file"}
-%%            {fun() -> gen_error_no_lua(ProtoList, ErrorList) end, "gen_error_no_lua"},
+            {fun() -> gen_proto_file(ProtoList) end, "gen_proto_file"}
 %%
 %%            {fun() -> gen_proto_router(ProtoList) end, "gen_proto_router"},
 %%            {fun() -> gen_gateway_proto_id(ProtoList) end, "gen_gateway_proto_id"},
@@ -87,9 +87,9 @@ gen_all() ->
     process_flag(trap_exit, false),
     gen_gpb(),
     ok.
-%%write_file(FileName, Bytes, Modes) ->
-%%    ok = filelib:ensure_dir(FileName),
-%%    ok = file:write_file(FileName, Bytes, Modes).
+write_file(FileName, Bytes, Modes) ->
+    ok = filelib:ensure_dir(FileName),
+    ok = file:write_file(FileName, Bytes, Modes).
 
 ensure_dir() ->
     [ensure_dir(Dir) || Dir <- ?ALL_CHECK_DIR].
@@ -314,6 +314,123 @@ gen_error_code(_ID, Name, Num) ->
 
 %% ======================== 检查错误码合法性, 无重复 end ==============================
 
+%%=============================
+%% @returns {L1, L2, L3}
+%%          L1 := [ProtoMap], 未定义router的清单
+%%          L2 := [{HrlName, [ProtoMap]}]
+%%          L3 := [{RoleModule, [ProtoName]}]
+gen_hrl_list(ProtoList) ->
+    {OtherList, HrlList, RoleModList} =
+        lists:foldl(
+            fun(Map, {OtherAcc, HrlsAcc, RoleModAcc}) ->
+                case maps:find(?MAP_KEY_ROUTER, Map) of
+                    {ok, Router} ->
+                        HrlName = get_hrl_name(Router),
+                        case lists:keyfind(HrlName, 1, HrlsAcc) of
+                            {_, HrlsAcc0} -> ok;
+                            _ -> HrlsAcc0 = []
+                        end,
+                        HrlsAcc2 = lists:keystore(HrlName, 1, HrlsAcc, {HrlName, [Map|HrlsAcc0]}),
+                        RoleModAcc2 = get_role_mod(Map, Router, RoleModAcc),
+                        {OtherAcc, HrlsAcc2, RoleModAcc2};
+                    _ ->
+                        {[Map|OtherAcc], HrlsAcc, RoleModAcc}
+                end
+            end, {[], [], []}, ProtoList),
+    RoleModList2 = del_ignore_list(?ROLE_MOD_IGNORE_LIST, RoleModList),
+    {OtherList, HrlList, RoleModList2}.
+get_hrl_name(Router) ->
+    case Router of
+        {Value} ->
+            Value;
+        {_Value, Mod} ->
+            Mod;
+        _ ->
+            Router
+    end.
+
+get_role_mod(Map, Router, RoleModAcc) ->
+    case Router of
+        {role, Mod} -> %% role模块才加
+            ProtoName = get_map_name(Map),
+            case is_tos(ProtoName) of
+                true ->
+                    case lists:keyfind(Mod, 1, RoleModAcc) of
+                        {_, NameList} ->
+                            lists:keyreplace(Mod, 1, RoleModAcc, {Mod, [ProtoName|lists:delete(ProtoName, NameList)]});
+                        _ ->
+                            [{Mod, [ProtoName]}|RoleModAcc]
+                    end;
+                _ ->
+                    RoleModAcc
+            end;
+        _ ->
+            RoleModAcc
+    end.
+
+del_ignore_list([], RoleModList) ->
+    RoleModList;
+del_ignore_list([T|R], RoleModList) ->
+    del_ignore_list(R, lists:keydelete(T, 1, RoleModList)).
+
+is_tos(Map) when is_map(Map) ->
+    {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
+    is_tos(Name);
+is_tos(Name) ->
+    Ts = string:tokens(to_list(Name), "_"),
+    hd(Ts) =:= "m" andalso lists:last(Ts) =:= "tos".
+%%is_toc(Map) when is_map(Map) ->
+%%    {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
+%%    is_toc(Name);
+%%is_toc(Name) ->
+%%    Ts = string:tokens(to_list(Name), "_"),
+%%    hd(Ts) =:= "m" andalso lists:last(Ts) =:= "toc".
+%%
+%%switch_tos_toc(Name) ->
+%%    Name0 = string:tokens(Name, "_"),
+%%    [Type|Name1] = lists:reverse(Name0),
+%%    Name2 = lists:reverse(Name1),
+%%    Res =
+%%        case Type of
+%%            "tos" -> string:join(Name2 ++ ["toc"], "_");
+%%            "toc" -> string:join(Name2 ++ ["tos"], "_")
+%%        end,
+%%    Res.
+
+%% ==================================================
+%% 生成game_proto.proto
+%% ==================================================
+gen_proto_file(ProtoList) ->
+    Head = "syntax = \"proto3\";~n",
+    Maps = lists:foldl(
+        fun(Map, Acc) ->
+            Str = make_map_to_message(Map),
+            [Str | Acc]
+    end, [], ProtoList),
+    write_file(?GOOGLE_GAME_PROTO, lists:flatten(lists:concat([Head, Maps])), [{encoding, latin1}]).
+
+make_map_to_message(Map) ->
+    #{?MAP_KEY_NAME := Name, ?MAP_KEY_NOTE := Note, ?MAP_KEY_FIELD := Fields} = Map,
+    H = io_lib:format("message ~w \{ \/\/ ~s ~n", [Name, get_note(Note)]),
+    F = get_field_define(Fields),
+    T = io_lib:format("}~n", []),
+    lists:flatten(lists:concat([H, F, T])).
+
+get_field_define([]) -> io_lib:format("", []);
+get_field_define(List) ->
+    lists:foldr(
+        fun({Name, DataType, Note}, {Acc, Count}) ->
+            DataType = get_protobuf_type(DataType),
+            {[io_lib:format("    ~s ~w = ~w; \/\/~s~n", [DataType, Name, Count, Note])
+                | Acc], Count + 1}
+    end, {[], 1}, List).
+
+get_protobuf_type(int) -> "int32";
+get_protobuf_type(long) -> "int64";
+get_protobuf_type(string) -> "byte";
+get_protobuf_type([P]) -> lists:concat(["repeated", P]);
+get_protobuf_type(P) -> P.
+
 %% =======================根据game_proto.proto生成gpb的hrl和erl==================================
 gen_gpb() ->
     setup_code_path(),
@@ -396,10 +513,10 @@ to_list(Atom) when erlang:is_atom(Atom) ->
 %%to_string(_Type, Default) ->
 %%    to_string(Default).
 %%
-%%get_map_name(Map) ->
-%%    {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
-%%    Name.
-%%
+get_map_name(Map) ->
+    {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
+    Name.
+
 %%get_map_router(Map) ->
 %%    case  maps:find(?MAP_KEY_ROUTER, Map) of
 %%        {ok,Router} -> Router;
@@ -440,18 +557,18 @@ to_list(Atom) when erlang:is_atom(Atom) ->
 %%            undefined
 %%    end.
 %%
-%%get_note([]) -> "";
-%%get_note(Note) ->
-%%    NoteList = to_list(Note),
-%%    NoteList1 = string:strip(NoteList, left, $/),
-%%    case NoteList1 of
-%%        [_|_] ->
-%%            NoteList2 = re:replace(NoteList1, "\"", "", [{return, list}, global]),
-%%            NoteList3 = re:replace(NoteList2, "\<", "", [{return, list}, global]),
-%%            NoteList4 = re:replace(NoteList3, "\>", "", [{return, list}, global]),
-%%            NoteList5 = re:replace(NoteList4, "\/", "", [{return, list}, global]),
-%%            NoteList6 = re:replace(NoteList5, [13], "", [{return, list}, global]); %%反斜杠。。。
-%%        _ -> NoteList6 = NoteList1
-%%    end,
-%%    NoteList6.
+get_note([]) -> "";
+get_note(Note) ->
+    NoteList = to_list(Note),
+    NoteList1 = string:strip(NoteList, left, $/),
+    case NoteList1 of
+        [_|_] ->
+            NoteList2 = re:replace(NoteList1, "\"", "", [{return, list}, global]),
+            NoteList3 = re:replace(NoteList2, "\<", "", [{return, list}, global]),
+            NoteList4 = re:replace(NoteList3, "\>", "", [{return, list}, global]),
+            NoteList5 = re:replace(NoteList4, "\/", "", [{return, list}, global]),
+            NoteList6 = re:replace(NoteList5, [13], "", [{return, list}, global]); %%反斜杠。。。
+        _ -> NoteList6 = NoteList1
+    end,
+    NoteList6.
 

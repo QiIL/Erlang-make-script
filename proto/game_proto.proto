@@ -2,8 +2,8 @@ syntax = "proto3";
 message m_role_info_tos {
 }
 message m_role_info_toc {
-    int64 role_id = 1; // i am string
-    p_kvi jb = 2;
+    int64 role_id = 1; // note
+    p_kvi jb = 2; // note
 }
 message p_kv {
     int32 id = 1;
