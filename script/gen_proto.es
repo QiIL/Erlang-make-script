@@ -7,6 +7,21 @@
 -define(GAME_PROTO, "./proto/game_proto.txt").
 -define(PROTO_IDS, "./proto/proto_id.txt").
 -define(GOOGLE_GAME_PROTO, "./proto/game_proto.proto").
+-define(ALL_PB_HRL,             "./include/all_pb.hrl").
+-define(COMMON_PB_HRL,          "./include/common_pb.hrl").
+-define(GATEWAY_PROTO_ROUTER,   "./src/proto/gateway_proto_router.erl").
+-define(GATEWAY_PROTO_ACK_ERL,      "./src/proto/gateway_proto_ack.erl").
+%%-define(GATEWAY_PROTO_ACK_LUA,  "./front/proto/CfgAckProto.lua").
+-define(GATEWAY_PROTO_ID,       "./src/proto/gateway_proto_id.erl").
+%%-define(PROTO_LUA,              "./front/proto/Proto.lua"). %%协议的结构定义, COMPACT模式下为单行无注释文件
+%%-define(PROTO_LUA_DOC,          "./front/proto/Proto.lua.info"). %%COMPACT模式下生成, 作为可读文档, 不打包到最终应用里
+%%-define(PROTO_ALIAS_LUA,        "./front/proto/ProtoAlias.lua").
+-define(COMMON_ERROR_NO_HRL,    "./include/proto/common_error_no.hrl").
+-define(ALL_ERROR_NO_HRL,       "./include/proto/all_error_no.hrl").
+%%-define(SWITCHING_MODULES,      "./src/common/module_switching.erl").
+%%-define(TOS_REPLY_ERL,          "./src/common/tos_reply.erl").
+-define(PROTO_HRL_DIR,          "./include/proto/").
+-define(ERROR_CODE_LUA,         "./front/proto/CfgErrorCode.lua").
 -define(ALL_CHECK_DIR, [
     "./src/proto/",
     "./include/proto/"
@@ -51,19 +66,18 @@ gen_all() ->
     {CommonProtoList, HrlList, _RoleModList} = gen_hrl_list(ProtoList),
     FList =
         [
-            {fun() -> gen_proto_file(ProtoList) end, "gen_proto_file"}
-%%
-%%            {fun() -> gen_proto_router(ProtoList) end, "gen_proto_router"},
-%%            {fun() -> gen_gateway_proto_id(ProtoList) end, "gen_gateway_proto_id"},
-%%            {fun() -> gen_proto_ack_erl(ProtoList) end, "gen_proto_ack_erl"},
+            {fun() -> gen_proto_file(ProtoList) end, "gen_proto_file"},
+            {fun() -> gen_proto_router(ProtoList) end, "gen_proto_router"},
+            {fun() -> gen_gateway_proto_id(ProtoList) end, "gen_gateway_proto_id"},
+            {fun() -> gen_proto_ack_erl(ProtoList) end, "gen_proto_ack_erl"},
 %%            {fun() -> gen_proto_ack_lua(ProtoList) end, "gen_proto_ack_lua"},
 %%            {fun() -> gen_proto_switch(ProtoList) end, "gen_proto_switch"},
 %%
-%%            {fun() -> gen_proto_hrl(HrlList) end, "gen_proto_hrl"},
-%%            {fun() -> gen_common_pb_hrl(CommonProtoList) end, "gen_common_pb_hrl"},
-%%            {fun() -> gen_common_error_no(CommonProtoList, ErrorList) end, "gen_common_error_no"},
-%%            {fun() -> gen_all_pb_hrl(HrlList) end, "gen_all_pb_hrl"},
-%%            {fun() -> gen_all_error_no(ProtoList, ErrorList) end, "gen_all_error_no"},
+            {fun() -> gen_proto_hrl(HrlList) end, "gen_proto_hrl"},
+            {fun() -> gen_common_pb_hrl(CommonProtoList) end, "gen_common_pb_hrl"},
+            {fun() -> gen_all_pb_hrl(HrlList) end, "gen_all_pb_hrl"},
+            {fun() -> gen_common_error_no(CommonProtoList, ErrorList) end, "gen_common_error_no"},
+            {fun() -> gen_all_error_no(ProtoList, ErrorList) end, "gen_all_error_no"}
         ],
     process_flag(trap_exit, true),
     PidList = [ {erlang:spawn_link(F), Msg} || {F, Msg} <- FList ],
@@ -237,11 +251,11 @@ set_proto_id_txt(ProtoIDList) ->
     [ets:insert(proto_ids, {{proto_id, Name}, ID}) || {Name, ID} <- ProtoIDList],
     ok.
 
-%%%% @returns [{Name, ID}]
-%%get_all_proto_id() ->
-%%    [{_, ProtoIDList}] = ets:lookup(proto_ids, all_proto_id),
-%%    ProtoIDList.
-%%
+%% @returns [{Name, ID}]
+get_all_proto_id() ->
+    [{_, ProtoIDList}] = ets:lookup(proto_ids, all_proto_id),
+    ProtoIDList.
+
 
 get_map_id(Map) when erlang:is_map(Map) ->
     {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
@@ -379,13 +393,13 @@ is_tos(Map) when is_map(Map) ->
 is_tos(Name) ->
     Ts = string:tokens(to_list(Name), "_"),
     hd(Ts) =:= "m" andalso lists:last(Ts) =:= "tos".
-%%is_toc(Map) when is_map(Map) ->
-%%    {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
-%%    is_toc(Name);
-%%is_toc(Name) ->
-%%    Ts = string:tokens(to_list(Name), "_"),
-%%    hd(Ts) =:= "m" andalso lists:last(Ts) =:= "toc".
-%%
+is_toc(Map) when is_map(Map) ->
+    {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
+    is_toc(Name);
+is_toc(Name) ->
+    Ts = string:tokens(to_list(Name), "_"),
+    hd(Ts) =:= "m" andalso lists:last(Ts) =:= "toc".
+
 %%switch_tos_toc(Name) ->
 %%    Name0 = string:tokens(Name, "_"),
 %%    [Type|Name1] = lists:reverse(Name0),
@@ -401,12 +415,12 @@ is_tos(Name) ->
 %% 生成game_proto.proto
 %% ==================================================
 gen_proto_file(ProtoList) ->
-    Head = "syntax = \"proto3\";~n",
+    Head = "syntax = \"proto3\";\n",
     Maps = lists:foldl(
         fun(Map, Acc) ->
             Str = make_map_to_message(Map),
             [Str | Acc]
-    end, [], ProtoList),
+    end, [], lists:reverse(ProtoList)),
     write_file(?GOOGLE_GAME_PROTO, lists:flatten(lists:concat([Head, Maps])), [{encoding, latin1}]).
 
 make_map_to_message(Map) ->
@@ -414,22 +428,308 @@ make_map_to_message(Map) ->
     H = io_lib:format("message ~w \{ \/\/ ~s ~n", [Name, get_note(Note)]),
     F = get_field_define(Fields),
     T = io_lib:format("}~n", []),
+%%    io:format("~s", [lists:concat([H, F, T])]),
     lists:flatten(lists:concat([H, F, T])).
 
 get_field_define([]) -> io_lib:format("", []);
 get_field_define(List) ->
-    lists:foldr(
+    {Fileds, _} = lists:foldl(
         fun({Name, DataType, Note}, {Acc, Count}) ->
-            DataType = get_protobuf_type(DataType),
-            {[io_lib:format("    ~s ~w = ~w; \/\/~s~n", [DataType, Name, Count, Note])
-                | Acc], Count + 1}
-    end, {[], 1}, List).
+            GDataType = get_protobuf_type(DataType),
+            {[io_lib:format("    ~s ~w = ~w; \/\/~s~n", [GDataType, Name, Count, Note])
+                | Acc], Count - 1}
+    end, {[], erlang:length(List)}, lists:reverse(List)),
+    Fileds.
 
 get_protobuf_type(int) -> "int32";
 get_protobuf_type(long) -> "int64";
-get_protobuf_type(string) -> "byte";
-get_protobuf_type([P]) -> lists:concat(["repeated", P]);
+get_protobuf_type(string) -> "bytes";
+get_protobuf_type(bool) -> "bool";
+get_protobuf_type([int]) -> "repeated int32";
+get_protobuf_type([long]) -> "repeated int64";
+get_protobuf_type([string]) -> "repeated bytes";
+get_protobuf_type([P]) -> lists:concat(["repeated ", P]);
 get_protobuf_type(P) -> P.
+
+%%======================== 生成gateway_proto_router.erl  gen_proto_router start ==============================
+gen_proto_router(ProtoList) ->
+    Head = get_file_head() ++
+        "-module(gateway_proto_router).\n"
+        "-export([get_router/1]).\n\n",
+    Map1 =
+        lists:foldl(
+            fun(Map, Acc1) ->
+                Name = to_list(get_map_name(Map)),
+                case is_tos(Name) of
+                    true ->
+                        Router = get_map_router(Map),
+                        Router2 = get_router_value(Router),
+                        TosMap = io_lib:format("get_router(~s) -> ~s;~n", [Name, Router2]),
+                        NAcc1 = [TosMap|Acc1];
+                    false ->
+                        NAcc1 = Acc1
+                end,
+                NAcc1
+            end, [], ProtoList),
+    T1 = "get_router(_) -> undefined.\n",
+    Code = lists:flatten(lists:concat([Head, lists:reverse(Map1), T1])),
+    write_file(?GATEWAY_PROTO_ROUTER, Code, [{encoding, utf8}]),
+    ok.
+
+
+%%======================== 生成gateway_proto_id.erl  start ==============================
+gen_gateway_proto_id(ProtoList) ->
+    Head = get_file_head() ++
+        "-module(gateway_proto_id).\n"
+        "-export([get_map/1, get_fields/1]).\n\n",
+    ProtoIDList = get_all_proto_id(),
+    GetMapLs = [io_lib:format("get_map(~w) -> ~w;~nget_map(~w) -> ~w;~n", [ID, Name, Name, ID]) || {Name, ID} <- ProtoIDList],
+    GetMapCode = GetMapLs ++ io_lib:format("get_map(Info) -> Info.~n~n", []),
+    GetFieldsCode = gen_fields(ProtoList),
+    Code = lists:flatten(lists:concat([Head, GetMapCode, GetFieldsCode])),
+    write_file(?GATEWAY_PROTO_ID, Code, [{encoding, utf8}]),
+    ok.
+
+gen_fields(TocFields) ->
+    lists:foldl(
+        fun(#{?MAP_KEY_FIELD := FieldList, ?MAP_KEY_NAME := Name}, AccList) ->
+            ID = get_map_id(Name),
+            PointLs = get_proto_struct_pos(FieldList),
+            case PointLs of
+                [] -> AccList;
+                _ ->
+                    [io_lib:format("get_fields(~w) -> ~w;~nget_fields(~w) -> ~w;~n", [Name, PointLs, ID, PointLs])|AccList]
+            end
+        end, [], TocFields)
+    ++ io_lib:format("get_fields(_) -> [].~n~n", []).
+
+get_proto_struct_pos(FieldList) ->
+    {PointL, _} = lists:foldl(
+        fun(T, {AccList, Pos}) ->
+            Type = erlang:element(2, T),
+            case is_proto_struct(Type) of
+                true -> {[Pos|AccList], Pos + 1};
+                _ -> {AccList, Pos + 1}
+            end
+        end, {[], 2}, FieldList),
+    PointL.
+
+is_proto_struct([Type]) ->
+    is_proto_struct(Type);
+is_proto_struct(Type) ->
+    get_field_default(Type) =:= undefined.
+
+
+%%======================== 生成gateway_proto_id.erl  end ==============================
+
+%%======================== 生成gateway_proto_router.erl  end ==============================
+gen_proto_ack_erl(ProtoList) ->
+    Head = get_file_head() ++
+        "-module(gateway_proto_ack).\n"
+        "-export([get_ack/1]).\n\n",
+    Map1 =
+        lists:foldl(
+            fun(Map, Acc1) ->
+                Ack = maps:get(?MAP_KEY_ACK, Map, 1),
+                Name = to_list(get_map_name(Map)),
+                TosMap = io_lib:format("get_ack(~s) -> ~w;~n", [Name, Ack]),
+                [TosMap|Acc1]
+            end, [], ProtoList),
+    T1 = "get_ack(_) -> 0.\n",
+    Code = lists:flatten(lists:concat([Head, lists:reverse(Map1), T1])),
+    write_file(?GATEWAY_PROTO_ACK_ERL, Code, [{encoding, utf8}]),
+    ok.
+
+%% =============================== 生成各个模块的hrl end =================================
+gen_proto_hrl(HrlList) ->
+    filelib:ensure_dir(?PROTO_HRL_DIR),
+    lists:foreach(
+        fun({HrlName, ProtoList}) ->
+            HrlNameUpcase = string:to_upper(to_list(HrlName)),
+            IfDefine = io_lib:format("-ifndef(~s_HRL).\n-define(~s_HRL, true).\n", [HrlNameUpcase, HrlNameUpcase]),
+            RecordList = gen_record_fields(ProtoList),
+            ErrorList = gen_error_define(ProtoList),
+            Content = "%% coding: latin-1\n%% created by script, DO NOT EDIT!\n\n"++ IfDefine ++ ErrorList ++ RecordList ++ "-endif.",
+            Content2 = erlang:list_to_binary(Content),
+            FileName = lists:concat([?PROTO_HRL_DIR, to_list(HrlName), ".hrl"]),
+            case file:read_file(FileName) of
+                {ok, Content2} ->
+                    %%file:change_time(FileName, {erlang:date(), erlang:time()})
+                    ok;
+                _ ->
+                    write_file(FileName, Content2, [{encoding, latin1}])
+            end
+        end, HrlList),
+    %%删除当前proto下旧的hrl
+    {ok, FileList} = file:list_dir_all(?PROTO_HRL_DIR),
+    lists:foreach(
+        fun(File) ->
+            FileAtom = get_file_atom(File),
+            case lists:keyfind(FileAtom, 1, HrlList) of
+                {_, _} -> ignore;
+                _ ->
+                    DeleteFile = ?PROTO_HRL_DIR ++ File,
+                    case DeleteFile of %% common_error_no.hrl不能删除
+                        ?COMMON_ERROR_NO_HRL -> ignore;
+                        ?ALL_ERROR_NO_HRL -> ignore;
+                        _ -> file:delete(?PROTO_HRL_DIR ++ File)
+                    end
+            end
+        end, FileList).
+get_file_atom(File) ->
+    [List|_] = string:tokens(File, "."),
+    erlang:list_to_atom(List).
+
+%%======================== 生成common_pb.hrl  gen_common_pb_hrl start ==============================
+gen_common_pb_hrl(ProtoList) ->
+    Code = gen_record_fields(ProtoList),
+    Content = erlang:list_to_binary(["-ifndef(COMMON_PB_HRL).\n-define(COMMON_PB_HRL, true).\n", Code, "\n-endif."]),
+    case file:read_file(?COMMON_PB_HRL) of
+        {ok, Content} ->
+            io:format("INFO: ~s not changed~n", [?COMMON_PB_HRL]);
+        _ ->
+            write_file(?COMMON_PB_HRL, Content, [{encoding, utf8}])
+    end,
+    ok.
+
+gen_record_fields(ProtoList) ->
+    lists:foldr(
+        fun(Map, Acc) ->
+            {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
+            case maps:find(?MAP_KEY_FIELD, Map) of
+                {ok, Fields} ->
+                    ok;
+                _ ->
+                    Fields = []
+            end,
+            lists:concat(["-record(", Name, ",{", gen_record_fields2(Fields), "}).\n", Acc])
+        end, [], ProtoList).
+gen_record_fields2(Fields) ->
+    lists:foldl(
+        fun(Field, Acc) ->
+            Header = ?IF(Acc =:= [], "", ","),
+            case Field of
+                {Name, Type, Default, _Note} ->
+                    next;
+                {Name, Type, _Note} ->
+                    Default = get_field_default(Type)
+            end,
+            Default2 = to_string(Type, Default),
+            Code = ?IF(Default =:= undefined, lists:concat([Header, Name]), lists:concat([Header, Name, "=", to_string(Default2)])),
+            lists:concat([Acc, Code])
+        end, [], Fields).
+
+%%======================== 生成all_pb.hrl  gen_all_pb_hrl start ==============================
+gen_all_pb_hrl(HrlList) ->
+    Code = gen_proto_hrls(HrlList, []),
+    Content = erlang:list_to_binary(["-ifndef(ALL_PB_HRL).\n-define(ALL_PB_HRL, true).\n\n", Code, "\n-endif."]),
+    case file:read_file(?ALL_PB_HRL) of
+        {ok, Content} ->
+            io:format("INFO: ~s not changed~n", [?ALL_PB_HRL]);
+        _ ->
+            write_file(?ALL_PB_HRL, Content, [{encoding, utf8}])
+    end,
+    ok.
+
+gen_proto_hrls([], Acc) ->
+    lists:concat(["-include(\"common_pb.hrl\").\n", Acc]);
+gen_proto_hrls([{HrlName, _}|Ls], Acc) ->
+    Acc2 = lists:concat(["-include(\"proto/", to_list(HrlName), ".hrl\").\n", Acc]),
+    gen_proto_hrls(Ls, Acc2).
+
+%%======================== 生成common_error_no.hrl start ==============================
+gen_common_error_no(ProtoList, ErrorList) ->
+    Header =
+        "%% coding: latin-1\n"
+        "%% created by script, do not edit it\n\n"
+        "-ifndef(COMMON_ERROR_NO_HRL).\n"
+        "-define(COMMON_ERROR_NO_HRL, common_error_no_hrl).\n\n",
+    CommonList =
+        lists:foldr(
+            fun(Error, Acc) ->
+                case Error of
+                    {Code, Name, Note} -> ok;
+                    {Code, Name, Note, _ShowType} -> ok
+                end,
+                lists:concat(["-define(", Name, ", ", Code, "). %%", get_note(Note), "\n"]) ++ Acc
+            end, [], ErrorList),
+    NormalList = gen_error_define(ProtoList),
+    End = "-endif.",
+    Code = Header ++ CommonList ++ NormalList ++ End,
+    Content = erlang:list_to_binary(Code),
+    case file:read_file(?COMMON_ERROR_NO_HRL) of
+        {ok, Content} ->
+            io:format("INFO: ~s not changed~n", [?COMMON_ERROR_NO_HRL]);
+        _ ->
+            write_file(?COMMON_ERROR_NO_HRL, Content, [{encoding, latin1}])
+    end.
+
+gen_error_define(ProtoList) ->
+    lists:foldr(
+        fun(Map, Acc2) ->
+            case is_toc(get_map_name(Map)) of
+                true ->
+                    case maps:find(?MAP_KEY_ERRCODE, Map) of
+                        {ok, [_|_] = ErrorCodeList} -> %% 不为空列表时才继续
+                            ID = get_map_id(Map),
+                            gen_error_define2(ErrorCodeList, to_list(get_map_name(Map)), ID) ++ "\n" ++ Acc2;
+                        _ ->
+                            Acc2
+                    end;
+                _ ->
+                    Acc2
+            end
+        end, [], ProtoList).
+gen_error_define2(ErrorList, Name, ID) ->
+    Header = gen_error_macro_head(Name),
+    lists:foldr(
+        fun(Error, Acc) ->
+            case Error of
+                {Num, Note} -> ok;
+                {Num, Note, _ShowType} -> ok
+            end,
+            MacroName = gen_error_macro(Header, Num),
+            MacroVal = gen_error_code(ID, Name, Num),
+            io_lib:format("-define(~s, ~w). %%~s~n", [MacroName, MacroVal, get_note(Note)]) ++ Acc
+        end, [], ErrorList).
+gen_error_macro_head(TocName) ->
+    {ok, Pattern} = re:compile("m_(.*)_toc"),
+    case re:run(TocName, Pattern, [global, {capture, all, list}]) of
+        {_,[[_, Name]]} ->
+            "ERROR_" ++ string:to_upper(Name);
+        _ ->
+            "ERROR_" ++ string:to_upper(to_list(TocName))
+    end.
+gen_error_macro(Header, Num) ->
+    lists:flatten(io_lib:format("~s_~3..0w", [Header, Num])).
+
+%%======================== 生成gen_all_error_no start =================================
+gen_all_error_no(ProtoList, ErrorList) ->
+    filelib:ensure_dir(?PROTO_HRL_DIR),
+    Header =
+        "%% coding: latin-1\n"
+        "%% created by script, do not edit it\n\n"
+        "-ifndef(ALL_ERROR_NO_HRL).\n"
+        "-define(ALL_ERROR_NO_HRL, all_error_no_hrl).\n\n",
+    CommonList =
+        lists:foldr(
+            fun(Error, Acc) ->
+                case Error of
+                    {Code, Name, Note} -> ok;
+                    {Code, Name, Note, _ShowType} -> ok
+                end,
+                lists:concat(["-define(", Name, ", ", Code, "). %%", get_note(Note), "\n"]) ++ Acc
+            end, [], ErrorList),
+    NormalList = gen_error_define(ProtoList),
+    End = "-endif.",
+    Code = Header ++ CommonList ++ NormalList ++ End,
+    Content = erlang:list_to_binary(Code),
+    case file:read_file(?ALL_ERROR_NO_HRL) of
+        {ok, Content} ->
+            io:format("INFO: ~s not changed~n", [?ALL_ERROR_NO_HRL]);
+        _ ->
+            write_file(?ALL_ERROR_NO_HRL, Content, [{encoding, latin1}])
+    end.
 
 %% =======================根据game_proto.proto生成gpb的hrl和erl==================================
 gen_gpb() ->
@@ -499,64 +799,58 @@ to_list(Binary) when erlang:is_binary(Binary) ->
 to_list(Atom) when erlang:is_atom(Atom) ->
     erlang:atom_to_list(Atom).
 
+to_string([]) ->
+    "[]";
+to_string(Default) ->
+    to_list(Default).
 
+to_string(string, "") ->
+    "\"\"";
+to_string(_Type, Default) ->
+    to_string(Default).
 
-
-%%
-%%to_string([]) ->
-%%    "[]";
-%%to_string(Default) ->
-%%    to_list(Default).
-%%
-%%to_string(string, "") ->
-%%    "\"\"";
-%%to_string(_Type, Default) ->
-%%    to_string(Default).
-%%
 get_map_name(Map) ->
     {ok, Name} = maps:find(?MAP_KEY_NAME, Map),
     Name.
 
-%%get_map_router(Map) ->
-%%    case  maps:find(?MAP_KEY_ROUTER, Map) of
-%%        {ok,Router} -> Router;
-%%        _ -> undefined
-%%    end.
-%%
-%%
-%%get_router_value(Router) when erlang:is_atom(Router) ->
-%%    to_string(Router);
-%%get_router_value(Router) ->
-%%    case Router of
-%%        {Value} ->
-%%            to_string(Value);
-%%        {Value, Mod} ->
-%%            "{" ++ to_string(Value) ++ "," ++ to_string(Mod) ++ "}";
-%%        _ ->
-%%            to_list(Router)
-%%    end.
-%%
-%%
-%%get_field_default(Type) when erlang:is_list(Type) ->
-%%    [];
-%%get_field_default(Type) ->
-%%    case Type of
-%%        bool ->
-%%            true;
-%%        long ->
-%%            0;
-%%        int ->
-%%            0;
-%%        ulong ->
-%%            0;
-%%        int32 ->
-%%            0;
-%%        string ->
-%%            "";
-%%        _ ->
-%%            undefined
-%%    end.
-%%
+get_map_router(Map) ->
+    case  maps:find(?MAP_KEY_ROUTER, Map) of
+        {ok,Router} -> Router;
+        _ -> undefined
+    end.
+
+get_router_value(Router) when erlang:is_atom(Router) ->
+    to_string(Router);
+get_router_value(Router) ->
+    case Router of
+        {Value} ->
+            to_string(Value);
+        {Value, Mod} ->
+            "{" ++ to_string(Value) ++ "," ++ to_string(Mod) ++ "}";
+        _ ->
+            to_list(Router)
+    end.
+
+get_field_default(Type) when erlang:is_list(Type) ->
+    [];
+get_field_default(Type) ->
+    case Type of
+        bool ->
+            true;
+        long ->
+            0;
+        int ->
+            0;
+        ulong ->
+            0;
+        int32 ->
+            0;
+        string ->
+            "";
+        _ ->
+            undefined
+    end.
+
 get_note([]) -> "";
 get_note(Note) ->
     NoteList = to_list(Note),

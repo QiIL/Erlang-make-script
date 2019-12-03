@@ -28,18 +28,19 @@
 %%%% ======== 通用p结构 =========
 
 {proto_list,  [
+
 #{name => m_system_hb_tos, router => gateway, note => "心跳包",
-    	fields => [
-        ]},
+    fields => [
+]},
 
 #{name => m_system_hb_toc, router => gateway, note => "心跳包", ack => 0,
-    	fields => [
-    	 ]},
+    fields => [
+]},
 
 #{name => m_system_time_toc, router => gateway, note => "时间同步包",  ack => 0,
-	fields => [
+    fields => [
 	  {server_time,             int,                  ""}
-	 ]},
+]},
 
 #{name => m_system_error_toc, router => gateway, note => "提示各种系统错误",  ack => 0,
     fields => [
@@ -127,7 +128,178 @@
         {args,                          [string],                       "带参数，对应的err里面有~str，逐个替换"}
     ],
     err_code => [
+    ]},
+
+#{name => p_kv, note => "公用key_value结构",
+    fields => [
+        {id,                             int,                            "key"},
+        {val,                            long,                           "key对应的val（double类型）"}
+    ]},
+
+#{name => p_kvi, note => "公用key_value结构",
+    fields => [
+        {id,                             int,                            "key"},
+        {val,                            int,                            "key对应的val（int32类型）"}
+    ]},
+
+#{name => p_ks, note => "公用key_string结构",
+    fields => [
+        {id,                             int,                            "key"},
+        {str,                            string,                         "key对应的val（string类型）"}
+    ]},
+
+#{name => p_kb, note => "公用key_bool结构",
+    fields => [
+        {id,                             int,                            "key"},
+        {val,                            bool,                           "key对应的val（bool类型）"}
+    ]},
+
+#{name => p_kvl, note => "共用 key_intlist结构",
+    fields => [
+        {id,                             int,                            "key"},
+        {list,                           [int],                          ""}
+    ]},
+
+#{name => p_dkv, note => "公用key_value结构",
+    fields => [
+        {id,                             long,                           "KEY (double类型）"},
+        {val,                            int,                            "key对应的val（int32类型）"}
+    ]},
+
+#{name => p_kvt, note => "公用key_value_type结构",
+    fields => [
+        {id,                             int,                            "key"},
+        {val,                            int,                            "key对应的val（int32类型）"},
+        {type,                           int,                            ""}
+    ]},
+
+#{name => p_kvlt, note => "公用key_value_(long)type结构",
+    fields => [
+        {id,                             int,                            "key"},
+        {val,                            int,                            "key对应的val（int32类型）"},
+        {type,                           long,                            ""}
+
+    ]},
+
+#{name => p_lvt, note => "",
+    fields => [
+        {id,                             long,                            ""},
+        {val,                            int,                             ""},
+        {type,                           int,                             ""}
+    ]},
+
+#{name => p_score, note => "积分",
+    fields => [
+        {id,                             int,                            ""},
+        {val,                            int,                            ""},
+        {give_type,                      int,                            "获得类型， 0, 默认， 1，使用道具获得"}
+    ]},
+
+#{name => p_kvll, note => "共用 key_longlist结构",
+    fields => [
+        {id,                             int,                            "key"},
+        {list,                           [long],                          ""}
+    ]},
+
+#{name => p_dks, note => "公用longkey_string结构",
+    fields => [
+        {id,                             long,                           "KEY (double类型）"},
+        {val,                            string,                         "key对应的val（string类型）"}
+    ]},
+
+#{name => p_dkl, note => "公用longkey_string结构",
+    fields => [
+        {id,                             long,                           "KEY (double类型）"},
+        {list,                           [int],                          "key对应的val（list类型）"}
+    ]},
+
+#{name => p_item, note => "共用表示道具结构",
+    fields => [
+		{type_id,                        int,                           "道具ID"},
+		{num,                            int,                           "数量"},
+		{is_bind,                        int,                           "1是绑定，0是不绑定"}
+    ]},
+
+#{name => p_update, note => "",
+    fields => [
+        {type,                           int,                            "类型，1是更新技能id的PP值val1，2是更新技能id的状态val1,3是队长技能更新次数val，id=0左1右，id2=0,4是增加助战誓灵，id=0左1右，val是配置的ID"},
+        {id,                             int,                            "根据类型定"},
+        {id2,                            int,                            "根据类型定"},
+        {val,                            int,                            "根据类型定"},
+        {vals,                           [int],                          "根据类型定"}
+    ]},
+
+#{name => p_test, note => "测试结构内结构",
+    fields => [
+        {id,  int, "随便"},
+        {val,  [p_kv],  "结构内结构"}
+    ]},
+
+#{name => m_test_role_tos, router => {role, mod_role_test}, note => "测试角色模块路由协议",
+    fields => [
+        {filed1, int,  "整形"},
+        {filed2, long, "长整形"},
+        {filed3, [int],  "整形数组"},
+        {filed4, [long],  "长整形数组"},
+        {field5, string,  "二进制字符"},
+        {field6, [string],  "二进制字符数组"},
+        {field7, p_kvi,  "协议结构"},
+        {field8, [p_kvi],  "协议结构数组"},
+        {field9, p_test,  "协议结构2"},
+        {field10, [p_test], "协议结构数组2"}
+    ]},
+
+#{name => m_test_role_toc, router => {role, mod_role_test}, note => "测试角色模块路由协议",
+    fields => [
+        {filed1, int,  "整形"},
+        {filed2, long, "长整形"},
+        {filed3, [int],  "整形数组"},
+        {filed4, [long],  "长整形数组"},
+        {field5, string,  "二进制字符"},
+        {field6, [string],  "二进制字符数组"},
+        {field7, p_kvi,  "协议结构"},
+        {field8, [p_kvi],  "协议结构数组"},
+        {field9, p_test,  "协议结构2"},
+        {field10, [p_test], "协议结构数组2"}
+    ],
+    err_code => [
+        {1, "测试错误码"},
+        {2, "测试有东西的错误码", "TYPE_ALERT_RELOGIN"}
+    ]},
+
+#{name => m_test_public_tos, router => gateway, note => "测试角色模块路由协议",
+    fields => [
+        {filed1, int,  "整形"},
+        {filed2, long, "长整形"},
+        {filed3, [int],  "整形数组"},
+        {filed4, [long],  "长整形数组"},
+        {field5, string,  "二进制字符"},
+        {field6, [string],  "二进制字符数组"},
+        {field7, p_kvi,  "协议结构"},
+        {field8, [p_kvi],  "协议结构数组"},
+        {field9, p_test,  "协议结构2"},
+        {field10, [p_test], "协议结构数组2"}
+    ]},
+
+#{name => m_test_public_toc, note => "测试角色模块路由协议",
+    fields => [
+        {filed1, int,  "整形"},
+        {filed2, long, "长整形"},
+        {filed3, [int],  "整形数组"},
+        {filed4, [long],  "长整形数组"},
+        {field5, string,  "二进制字符"},
+        {field6, [string],  "二进制字符数组"},
+        {field7, p_kvi,  "协议结构"},
+        {field8, [p_kvi],  "协议结构数组"},
+        {field9, p_test,  "协议结构2"},
+        {field10, [p_test], "协议结构数组2"}
+    ],
+    err_code => [
+        {1, "测试错误码"},
+        {2, "测试有东西的错误码", "TYPE_ALERT_RELOGIN"}
     ]}
+
+%% end proto_list
 ]}.
 
 %% 通用错误配置
