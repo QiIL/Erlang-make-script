@@ -297,7 +297,620 @@
     err_code => [
         {1, "测试错误码"},
         {2, "测试有东西的错误码", "TYPE_ALERT_RELOGIN"}
-    ]}
+    ]},
+
+#{name => m_bgp_login_tos, router => gateway, note => "bgp(边界网关协议)登录请求",
+    fields => [
+        {id,                             int,                            ""},
+        {host,                           string,                         ""},
+        {port,                           int,                            ""}
+    ]},
+
+#{name => m_bgp_login_toc, router => gateway, note => "bgp(边界网关协议)登录请求", ack => 0,
+    fields => [
+        {id,                             int,                            ""},
+        {reason,                         string,                         ""}
+    ],
+    err_code => [
+    ]},
+
+#{name => m_bgp_client_ip_tos, router => gateway, note => "bgp(边界网关协议)更改用户IP请求",
+    fields => [
+        {ip,                             string,                            ""},
+        {time,                           int,                               ""},
+        {key,                            string,                            "SKey='mcbgp_', erlang:md5(lists:concat([SKey, IP, Time])) "}
+    ]},
+
+#{name => m_auth_key_tos, router => gateway, note => "登录请求",
+    fields => [
+      {uid,                     string,                  "账号名或前端通过SDK生产的唯一标识"},
+      {key,                     string,                  "认证key，从认证服务器生成"},
+      {session_id,              string,                  "某些平台(eg. UC)是使用SessionID登录的"},
+      {time,                    int,                     "前端登录时间戳"},
+      {agent_id,                int,                     "代理ID"},
+      {server_id,               int,                     "区服"},
+      {platform,                int,                     "渠道ID"},
+      {imei,                    string,                  "设备的IMEI码"},
+      {device,                  string,                  "设备名"},
+      {phone_os,                string,                  "设备操作系统"},
+      {is_reconnect,            int,                     "是否断线重连：0不是，1是"},
+      {client_version,          string,                  "前端APK版本号|是否测试环境：800|1"},
+      {extra_params,            string,                  "额外参数，通常为空"},
+      {client_oid,              string,                  "包体唯一标识码"},
+      {network_type,            string,                  "网络环境(wifi/3g/4g/5g)"},
+      {operator,                string,                  "移动网络运营商"},
+      {client_cid,              string,                  "个推的客户端ID"},
+      {idfa,                    string,                  "苹果广告投放标识"},
+      {login_type,              int,                     "登陆类型, 游客登录 sdk登陆"}
+	 ]},
+
+#{name => m_auth_key_toc, router => gateway, note => "登录返回", ack => 0,
+    fields => [
+       {succ,                    int,                     "是否成功"},
+       {reason,                  string,                  "失败时保存失败的原因"},
+       {is_new_role,             int,                     "是否需要创建角色"},
+       {map_id,                  int,                     ""},
+       {level,                   int,                     ""},
+       {default_faction,         int,                     ""},
+       {zone_id,                 int,                     "平台的分区ID，目前只有腾讯需要"},
+       {pf,                      int,                     "平台渠道编号, 用来做特权的，对应后端的pf"},
+       {server_online_time,      int,                     "开服日期时间戳"},
+       {role_name,               string,                  ""},
+       {token,                   string,                  "SDK验证返回给前端的token"},
+       {is_reconnect,            int,                     "是否断线重连：0不是，1是"},
+       {time_offset,             int,                     "服务器所在时区相对0时区的时间偏移，东八区为28800(60*60*8)"}
+    ],
+    err_code => [
+    ]},
+
+
+#{name => m_ack_list_tos, router => {role, mod_role_handle}, note => "请求或者确认收到需要ACK的协议",
+	fields => [
+	  {operation,                    int,               "operation = LastAckNum * 10 + IsAck, LastAckNum是前端上一次收到的ACK协议是第几条，IsAck=1表示确认，0 是请求"}
+	 ]},
+#{name => m_ack_list_toc, router => {role, mod_role_handle}, note => "请求或者确认收到需要ACK的确认协议, 请求时才需要回复，在包补完后才发送", ack => 0,
+	fields => [
+	 ]},
+
+#{name => m_common_reply_toc, note => "每个tos处理后回", ack => 0,
+	fields => [
+               {proto_id,               int,    ""}
+	 ]},
+
+#{name => m_role_create_tos, router => {role, role_login}, note => " 创建角色请求，一般不用",
+	fields => [
+	  {role_name,               string,                  ""},
+	  {sex,                     int,                     ""},
+	  {hair_type,               int,                     ""},
+	  {faction_id,              int,                     ""},
+	  {hair_color,              int,                     ""},
+	  {category,                int,                     ""},
+	  {create_param,            int,                     ""},
+	  {auto,                    int,                     ""}
+	 ]},
+
+#{name => m_role_create_toc, router => {role, role_login}, note => " 创建角色返回，一般不用",
+	fields => [
+	  {reason,                  string,                  ""}
+	 ],
+          err_code => [
+          ]},
+
+#{name => m_role_detail_tos, router => {role, role_login}, note => "角色详细数据请求",
+	fields => [
+
+	 ]},
+
+#{name => m_role_detail_toc, router => {role, role_login}, note => "角色详细数据返回", ack => 0,
+	fields => [
+	  {role_details,            p_role_data,             "角色详细信息"},
+	  {vip_level,               int,                     "VIP 等级"},
+	  {server_time,             int,                     "服务器当前时间"},
+	  {queue_num,               int,                     ""},
+	  {wait_sec,                int,                     ""},
+	  {full_version,            string,                  "完整版本号"}
+	 ],
+          err_code => [
+          ]},
+
+
+#{name => m_role_guide_do_tos, router => {role, mod_role_guide}, note => "新手引导",
+    fields => [
+        {guide_id,                           int,                         ""},
+        {state,                              int,                         "状态1开始，2完成"}
+    ]},
+
+#{name => m_role_guide_info_toc, router => {role, mod_role_guide}, note => "",
+    fields => [
+           {guide,              p_role_guide,                   ""}
+    ],
+    err_code => [
+    ]},
+
+    #{name => p_role_data, note => "角色登录数据结构",
+        fields => [
+            {role_id,                        long,                           "角色ID"},
+            {attr,                           p_role_attr,                    "角色属性信息"},
+            {asset,                          p_role_asset,                   "角色资产信息"},
+            {fight,                          p_role_fight,                   "角色战斗相关信息"},
+            {guide,                          p_role_guide,                   "角色新手/引导相关信息"},
+            {last_reset_time,                int,                             ""}
+        ]},
+    #{name => p_role_attr, note => "玩家属性结构体",
+    	fields => [
+    	  {role_id,                 long,                    ""},
+    	  {role_name,               string,                  "角色名"},
+    	  {account_name,            string,                  "帐号名, 字符串 "},
+    	  {create_time,             int,                     "创建时间"},
+    	  {level,                   int,                     "等级"},
+    	  {exp,                     int,                     "经验值"},
+    	  {next_level_exp,          int,                     "升级经验"},
+    	  {family_id,               long,                     "仙盟id"},
+    	  {family_name,             string,                  "仙盟名称"},
+          {family_ban_time,         int,                     "限制操作公会的时间"},
+    	  {helper,                  int,                     "增援誓灵"},
+    	  {helper_gain_time,        int,                     "增援誓灵获得时间"},
+    	  {helper_feeling,          int,                     "增援誓灵的羁绊值"},
+    	  {last_login_ip,           string,                  "最后一次登录的IP"},
+    	  {last_login_time,         int,                     " 最后一次登录时间"},
+    	  {last_offline_time,       int,                     "上次下线时间"},
+    	  {sustained_time_per_day,  int,                     "当日累计在线时间"},
+    	  {agreement,               int,                     "表示是否已经同意规约，0是未同意，同意是时间戳"},
+          {agent_id,                int,                     "注册时的代理ID"},
+          {server_id,               int,                     "注册时的区服"},
+          {platform,                int,                     "注册时的渠道ID"},
+          {is_internal,             int,                     "1内部号，0非内部号"},
+          {create_ip,               string,                  "创号时的ip"},
+          {device,                  string,                  "设备名"},
+          {imei,                    string,                  "设备IMEI码"},
+          {phone_os,                string,                  "设备操作系统"},
+          {avatar_border,           int,                     "当前使用的头像框"},
+          {servant_face,            int,                     "当前使用的表情"},
+          {head,                    int,                     "当前使用的头像"},
+          {medals,                  [p_kvi],                 "当前使用的勋章"},
+          {use_avatar,              int,                     "正在使用的头像类型,1表情，2头像，3御灵士形象"}
+    	 ]},
+
+    #{name => p_role_asset, note => "角色资产",
+        fields => [
+            {role_id,                        long,                           "角色id"},
+            {gold,                           int,                            "元宝"},
+            {gold_given,                     int,                            "赠送元宝"},
+            {silver,                         int,                            "铜钱"},
+            {total_pay_gold,                 int,                            "总充值元宝数量"},
+            {total_consume_gold,             int,                            "总消费元宝数量"},
+            {total_consume_money,             int,                            "总消费rmb数量，单位分"},
+            {role_scores,                    [p_kvi],                        "积分"}
+        ]},
+
+    #{name => p_role_fight, note => "角色战斗相关内容",
+        fields => [
+            {fighting_id,                    int,                            "正在战斗时则>0,没有则为0"},
+            {copy_id,                        int,                            "正在战斗时则>0,没有则为0"},
+            {state,                          int,                            "再如果fighting_id>0，就不需要管这个参数，表示玩家当前的pvp状态，目前只有准备中和准备完毕,0就不用管"}
+        ]},
+
+    #{name => p_role_guide, note => "角色引导相关内容",
+        fields => [
+            {guide_groups,                   [int],                          "还没进行过的引导"},
+            {last_guide_id,                  int,                            "上一次完成的引导是什么"}
+        ]},
+
+    #{name => m_role_rating_guide_tos, router => {role, mod_role_rating_guide}, note => "商店评分引导",
+        fields => [
+        ]},
+
+    #{name => m_role_rating_guide_toc, router => {role, mod_role_rating_guide}, note => "商店评分引导提示",
+        fields => [
+        ]},
+
+    #{name => m_role_attr_change_toc, note => "单项属性改变更新",
+        fields => [
+            {role_id,                        long,                           ""},
+            {changes,                        [p_role_change],                "角色属性改变结构体"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => p_role_change, note => "角色属性改变结构体",
+        fields => [
+            {change_type,                    int,                            "角色单项属性变化，具体值查看includeglobal.hrl的 380-411行"},
+            {new_value,                      long,                           "新的值"},
+            {new_string,                     string,                         "新的值, 一般为[ ]"},
+            {string_list,                    [string],                       "新的值, 一般为[]"},
+            {result_type,                    int,                            "角色属性变化是由什么导致的"}
+        ]},
+
+    #{name => m_role_score_change_toc, router => {role, mod_role_data}, note => "角色积分更新",
+        fields => [
+            {role_scores,                    [p_score],                        "发送所有的积分数量"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_role_power_update_toc, router => {role, mod_role_data}, note => "角色战斗力更新",
+        fields => [
+            {power,                          int,                            "战斗力"},
+            {max_power,                      int,                            "历史最高战斗力"},
+            {power_src_type,                 int,                            "战斗力来源类型"},
+            {power_infos,                    [p_kvi],                        "战斗力信息"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_role_hmp_change_toc, note => "血量、蓝量更新",
+        fields => [
+            {role_id,                        long,                           ""},
+            {new_hp,                         int,                            "血量0:表示无变化, 其余数字表示更新值"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_role_money_change_toc, note => "角色一级货币更新（前端有用到，之后协商后可删除）",
+        fields => [
+            {new_gold,                       int,                            "不绑定元宝 0:表示无变化, 其余数字表示更新值"},
+            {new_bgold,                      int,                            "绑定元宝 0:表示无变化, 其余数字表示更新值"},
+            {new_ngold,                      int,                            "金券 0:表示无变化, 其余数字表示更新值"},
+            {new_silver,                     int,                            "不绑定银子 0:表示无变化, 其余数字表示更新值"},
+            {new_bsilver,                    int,                            "绑定银子 0:表示无变化, 其余数字表示更新值"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_role_gold_change_toc, note => "元宝更新（前端有用到，之后协商后可删除）",
+        fields => [
+            {new_gold,                       int,                            "不绑定元宝 0:表示无变化, 其余数字表示更新值"},
+            {new_bgold,                      int,                            "绑定元宝 0:表示无变化, 其余数字表示更新值"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_role_silver_change_toc, note => "铜钱更新（前端有用到，之后协商后可删除）",
+        fields => [
+            {new_silver,                     int,                            "不绑定银子 0:表示无变化, 其余数字表示更新值"},
+            {new_bsilver,                    int,                            "绑定银子 0:表示无变化, 其余数字表示更新值"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_role_goldnote_change_toc, note => "金券更新（前端有用到，之后协商后可删除）",
+        fields => [
+            {new_ngold,                      int,                            "金券 0:表示无变化, 其余数字表示更新值"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_role_exp_change_toc, router => {role, mod_role_exp}, note => "角色经验更新",
+        fields => [
+            {role_id,                        long,                           ""},
+            {new_exp,                        int,                           "数字表示更新值"},
+            {exp_type,                       int,                            "什么事件导致经验变化"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_role_subscribe_tos, router => {role, mod_role_subscribe}, note => "",
+        fields => [
+            {op_type,                        int,                            "1订阅 2取消订阅"},
+            {subject_id,                     long,                           "订阅号"}
+        ]},
+
+    #{name => m_role_subscribe_toc, router => {role, mod_role_subscribe}, note => "",
+        fields => [
+            {op_type,                        int,                            ""}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_item_use_tos, router => {role, mod_role_item}, note => "道具使用请求",
+        fields => [
+            {gid,                             int,                            "p_goods.id"},
+            {usenum,                         int,                            "使用的个数"},
+            {effect_id,                      int,                            "作用的物品ID"},
+            {op_type,                        int,                            "0 普通使用 1 批量使用"}
+        ]},
+
+    #{name => m_item_use_toc, router => {role, mod_role_item}, note => "道具使用返回",
+        fields => [
+            {gid,                             int,                            "p_goods.id"},
+            {rest,                           int,                            "道具使用后剩余个数"},
+            {usenum,                         int,                            "使用的个数"},
+            {type_id,                        int,                            "道具类型"},
+            {op_type,                        int,                            "0 普通使用 1 批量使用"}
+        ],
+        err_code => [
+            {1,                                  "该物品暂时不能使用，详情请见官方公告!"},
+            {2,                                  "携带仙宠已达上限，请先放生品质，资质较低的仙宠"},
+            {3,                                  "本地图无法使用回城卷"},
+            {4,                                  "职业不符，无法使用"},
+            {5,                                  "仙宠出现配置错误，请联系GM哦!"},
+            {6,                                  "亲，你的等级还带不了这个仙宠，努力升级吧"},
+            {7,                                  "您当前没有正在出战的仙宠。"},
+            {8,                                  "成功使用兽魂经验物品，兽魂经验增加"},
+            {9,                                  "您的仙宠没有这个技能"},
+            {10,                                 "这个技能不能获得财富哦"},
+            {11,                                 "技能冷却时间还未到"},
+            {12,                                 "该仙宠不存在"},
+            {13,                                 "仙宠未出战或仙宠等级已满，道具无法使用"},
+            {14,                                 "找不到技能等级"},
+            {15,                                 "使用道具获得BUFF"},
+            {16,                                 "使用九天精魄给坐骑加经验"},
+            {17,                                 "成功使用仙宠召唤符，请按X查看。"},
+            {18,                                 "功能尚未开通，不能使用该道具"},
+            {19,                                 "您已经有该羽翼了，不需要使用该道具"},
+            {20,                                 "性别不对，不能使用"},
+            {21,                                 "中毒状态下不能使用恢复药品"},
+            {22,                                 "道具使用增加生命值"},
+            {23,                                 "打开礼包失败"},
+            {24,                                 "成功解锁新形象"},
+            {25,                                 "战斗状态不可传送回城"},
+            {26,                                 "成功回到璇玑城"},
+            {27,                                 "职业不对，不能使用"},
+            {28,                                 "含有禁止出售的道具"},
+            {29,                                 "该道具禁止丢弃"},
+            {30,                                 "该道具禁止放入仓库"},
+            {31,                                 "没有这种类型的物品"},
+            {32,                                 "使用道具数量不合法"},
+            {33,                                 "该道具不能直接使用"},
+            {34,                                 "物品数量不足"},
+            {35,                                 "中毒状态下无法使用道具"},
+            {36,                                 "性别不符，不能使用这个道具"},
+            {37,                                 "等级不符，不能使用这个道具"},
+            {38,                                 "生命值为0下不能使用物品"},
+            {39,                                 "使用失败，道具冷却时间未到"},
+            {40,                                 "该物品未到使用时间"},
+            {41,                                 "该物品已经过期"},
+            {42,                                 "当前状态不能使用道具"},
+            {43,                                 "该道具不能在当前状态下使用"},
+            {44,                                 "使用道具数据异常"},
+            {45,                                 "背包已满，不能使用道具"},
+            {46,                                 "使用清心丸，减少了10点pk值"},
+            {47,                                 "使用除孽丹，减少了pk值"},
+            {48,                                 "使用渡厄丹，减少了pk值"},
+            {49,                                 "配置错误，不存在积分类型"},
+            {50,                                 "道具使用增加生命值(百分比回复)"},
+            {51,                                 "兽魂背包满了"},
+            {52,                                 "获取兽魂空位出错了"},
+            {53,                                 "获取兽魂配置出错了"},
+            {54,                                 "已经在璇玑城"},
+            {55,                                 "队列不能超过10个，请清除当前使用的经验符效果"},
+            {56,                                 "炼器已升满阶，无法使用"},
+            {57,                                 "该形象已激活，无需重复激活"},
+            {58,                                 "兽神阵强化等级已达到满级，无法使用道具"},
+            {59,                                 "元神喂养等级已达到满级，无法使用道具"},
+            {60,                                 "使用背包材料可将元神喂养等级升至满级，无法使用道具"},
+            {61,                                 "使用背包材料可将兽神阵强化等级升至满级，无法使用道具"},
+            {62,                                 "只能在特定地图召唤"},
+            {63,                                 "该道具可用于圣诞活动界面，添加圣诞树进度"},
+            {64,                                "道具已被锁定"},
+            {65,                                "使用成功"},
+            {66,                                "需要通关剧情6-4，开启信仰功能后才可使用"}
+        ]},
+
+    #{name => m_item_exchange_goods_tos, router => {role, mod_role_item}, note => "道具兑换",
+        fields => [
+            {item_id,                         int,                           "兑换券道具的id"},
+            {goods,                           [p_kvi],                       "消耗的item，key为道具类别id，val为兑换数量"}
+        ]
+    },
+
+    #{name => m_item_exchange_goods_toc, router => {role, mod_role_item}, note => "道具兑换",
+        fields => [
+            {item_id,                         int,                            "兑换券道具的id"},
+            {rest,                            int,                            "道具使用后剩余个数"}
+        ],
+        err_code => [
+            {1,                                  "该物品暂时不能使用，详情请见官方公告!"},
+            {2,                                  "含有不能被兑换的道具"},
+            {3,                                  "该道具禁止丢弃"},
+            {4,                                  "兑换道具数量不合法"},
+            {5,                                  "该道具不能直接使用"},
+            {6,                                  "物品数量不足"},
+            {7,                                  "等级不符，不能使用这个道具"},
+            {8,                                  "材料背包已满，请拓展或整理背包"},
+            {9,                                  "道具已被锁定"},
+            {10,                                 "该道具不能直接使用"},
+            {11,                                 "没有这种类型的物品"},
+            {12,                                 "该物品未到使用时间"},
+            {13,                                 "该物品已经过期"},
+            {14,                                 "等级不符，不能使用这个道具"}
+        ]
+    },
+
+    #{name => m_item_decompose_tos, router => {role, mod_role_item}, note => "破碎/分解道具",
+        fields => [
+            {item_id,                         int,                            "被道具类别id"},
+            {option,                          int,                            "分解可选操作"},
+            {num,                             int,                            "分解的数量"}
+        ]},
+
+    #{name => m_item_decompose_toc, router => {role, mod_role_item}, note => "破碎/分解道具",
+        fields => [
+            {item_id,                          int,                           "被分解道具id"},
+            {rest,                             int,                           "被分解道具剩余数量"}
+        ],
+        err_code => [
+            {1,                                  "道具数量不足"},
+            {2,                                  "材料背包已满，请清理材料背包"},
+            {3,                                  "道具使用数量不合法"},
+            {4,                                  "道具不合法"}
+        ]},
+
+    #{name => m_item_cd_time_toc, router => {role, mod_role_item}, note => "道具使用CD返回",
+        fields => [
+            {list,                           [p_kvi],                        "由后端通知前端需要显示CD效果的道具，id为CDType，Val为到期时间"}
+        ],
+        err_code => [
+        ]},
+
+    #{name => m_extend_bag_tos, router => {role, mod_role_item}, note => "扩展背包升级",
+        fields => [
+            {bag_type,                          int,                            "背包ID"}
+        ]},
+
+    #{name => m_extend_bag_toc, router => {role, mod_role_item}, note => "扩展背包返回, 开通六界仙尊时会直接扩展背包",
+        fields => [
+            {bag_type,                       int,                            "背包类型"},
+            {content,                        int,                            "新的格子数"}
+        ],
+        err_code => [
+            {1,         "背包类型错误"},
+            {2,         "这个背包类型不能拓展"},
+            {3,         "背包大小已扩展到上限"},
+            {4,         "已扩充材料背包"},
+            {5,         "已扩充圣器背包"}
+        ]},
+
+    #{name => m_gift_open_toc, router => {role, mod_role_item}, note => "打开礼包，背包满时返回",
+        fields => [
+            {type_id,                        int,                            ""},
+            {num,                            int,                            ""}
+        ],
+        err_code => [
+        ]},
+
+
+    #{name => m_gift_rate_tos, router => {role, mod_role_item}, note => "获取礼包的概率",
+        fields => [
+            {gift_id,                        int,                            ""}
+        ]},
+
+
+    #{name => m_gift_rate_toc, router => {role, mod_role_item}, note => "获取礼包的概率",
+        fields => [
+            {gift_id,                        int,                            ""},
+            {rate,                        [p_kvi],                            "这个礼包能开出的所有道具和概率，万分比 #p_kvi{id=TypeID, val=Rate}"}
+        ],
+        err_code => [
+            {1,         "未知错误"}
+        ]},
+
+    #{name => m_goods_destroy_tos, router => {role, mod_role_goods}, note => "摧毁物品",
+        fields => [
+            {id,                             int,                            "goods id"}
+        ]},
+
+    #{name => m_goods_destroy_toc, router => {role, mod_role_goods}, note => "摧毁物品返回",
+        fields => [
+            {id,                          int,                            "goods ID"}
+        ],
+        err_code => [
+            {1, "这个背包的物品不能销毁"}
+        ]},
+
+
+    #{name => m_goods_update_toc, router => {role, mod_role_goods}, note => "更新物品返回", ack => 1,
+        fields => [
+            {goods,                          [p_goods],                      "背包中的物品"},
+            {type,                           int,                            "1 new 2 del 3 update"},
+            {reward_type,                    int,                            "1.任务奖励，2.开箱子, 3虚天宝箱 等等具体在include/item_type.hrl的134行"},
+            {replace_list,                   [p_reward_replace],             "被自动替换的道具"}
+        ],
+        err_code => [
+            {1,         "创建的道具不在同一个背包"}
+        ]},
+
+    #{name => m_goods_bag_info_tos, router => {role, mod_role_goods}, note => "背包信息",
+        fields => [
+            {type,                           int,                            "背包种类"}
+        ]},
+
+    #{name => m_goods_bag_info_toc, router => {role, mod_role_goods}, note => "",
+        fields => [
+            {bag,                            p_bag_content,                ""}
+        ],
+        err_code => [
+                 {1,        "没有这个背包"}
+        ]},
+
+    #{name => m_goods_lock_tos, router => {role, mod_role_goods}, note => "加锁",
+        fields => [
+               {id,      int,    "goods_id, 数据库唯一标识ID"},
+               {lock,     int,    "0 解锁 1 锁定"}
+        ]},
+
+    #{name => m_goods_lock_toc, router => {role, mod_role_goods}, note => "",
+        fields => [
+            {id,                             int,                            "p_goods.id"},
+            {lock,                         int,                            "0, 解锁， 1 锁定"}
+        ],
+        err_code => [
+                 {1,                "没有道具"},
+                 {2,                "道具已锁定"},
+                 {3,                "道具已解锁"},
+                 {4,                "这个道具不能锁定"}
+        ]},
+
+    #{name => m_goods_sell_tos, router => {role, mod_role_goods}, note => "出售",
+        fields => [
+               {list,       [p_kvi],                "id:goods_id, val:num"}
+        ]},
+
+    #{name => m_goods_sell_toc, router => {role, mod_role_goods}, note => "出售",
+        fields => [
+            {add_silver,                int,                            ""}
+        ],
+        err_code => [
+            {1,                 "参数错误"},
+            {2,                 "道具数量不足"},
+            {3,                 "这个道具不能出售"},
+            {4,                 "找不到这个道具"},
+            {5,                 "重复的道具ID"},
+            {6,                 "有道具已锁定"},
+            {7,                 "有道具已装备"}
+        ]},
+
+
+    #{name => m_item_compound_tos, router => {role, mod_role_compound}, note => "道具合成",
+        fields => [
+              {type_id,                    int,                    "材料ID"},
+              {num,                    int,                    "合成后的道具数量"}
+        ]},
+
+    #{name => m_item_compound_toc, router => {role, mod_role_compound}, note => "道具合成",
+        fields => [
+            {type_id,                    int,                       "合成后的道具ID"},
+            {num,                    int,                           "合成后的道具数量"},
+            {material,                    int,                       "合成前的道具ID"}
+        ],
+        err_code => [
+            {1,                 "参数错误"},
+            {2,                 "道具数量不足"}
+        ]},
+
+
+    #{name => p_goods, note => "道具结构体",
+        fields => [
+            {id,                             int,                            "数据库唯一标识ID"},
+            {bag_type,                       int,                            "改成背包类型 d"},
+            {role_id,                        long,                           "玩家ID d"},
+            {type_id,                        int,                            "物品类型ID"},
+            {cur_num,                        int,                            "当前个数"},
+            {cur_color,                      int,                            "当前颜色 d"},
+            {start_time,                     int,                            "开始时间"},
+            {end_time,                       int,                            "过期时间"},
+            {lock,                           int,                            ""},
+            {servant_id,                     int,                            "哪个誓灵装备中"},
+            {spec_type,                      string,                         "标识spec_data的p结构"},
+            {spec_data,                      binary,                         "额外特殊数据，放最后"}
+        ]},
+
+
+    #{name => p_bag_content, note => "背包格子结构",
+        fields => [
+            {bag_type,                       int,                            "背包类型"},
+            {size,                           int,                            "背包的格子容量"},
+            {goods_list,                     [p_goods],                      "格子中的道具"}
+        ]},
+
+    #{name => p_reward_replace, note => "因为已经持有所以被自动替换的特定道具",
+        fields => [
+            {type,                            int,                            "被自动替换的道具"},
+            {num,                             int,                            "被自动替换的个数"},
+            {replace_type,                    int,                            "实际获得的道具"},
+            {replace_num,                     int,                            "实际获得的个数"}
+         ]}
+
 
 %% end proto_list
 ]}.

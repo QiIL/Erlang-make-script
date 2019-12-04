@@ -21,7 +21,7 @@
 %%-define(SWITCHING_MODULES,      "./src/common/module_switching.erl").
 %%-define(TOS_REPLY_ERL,          "./src/common/tos_reply.erl").
 -define(PROTO_HRL_DIR,          "./include/proto/").
--define(ERROR_CODE_LUA,         "./front/proto/CfgErrorCode.lua").
+%%-define(ERROR_CODE_LUA,         "./front/proto/CfgErrorCode.lua").
 -define(ALL_CHECK_DIR, [
     "./src/proto/",
     "./include/proto/"
@@ -426,18 +426,23 @@ gen_proto_file(ProtoList) ->
 make_map_to_message(Map) ->
     #{?MAP_KEY_NAME := Name, ?MAP_KEY_NOTE := Note, ?MAP_KEY_FIELD := Fields} = Map,
     H = io_lib:format("message ~w \{ \/\/ ~s ~n", [Name, get_note(Note)]),
-    F = get_field_define(Fields),
+    F = get_field_define(Name, Fields),
     T = io_lib:format("}~n", []),
 %%    io:format("~s", [lists:concat([H, F, T])]),
     lists:flatten(lists:concat([H, F, T])).
 
-get_field_define([]) -> io_lib:format("", []);
-get_field_define(List) ->
+get_field_define(_, []) -> io_lib:format("", []);
+get_field_define(Message, List) ->
     {Fileds, _} = lists:foldl(
-        fun({Name, DataType, Note}, {Acc, Count}) ->
-            GDataType = get_protobuf_type(DataType),
-            {[io_lib:format("    ~s ~w = ~w; \/\/~s~n", [GDataType, Name, Count, Note])
-                | Acc], Count - 1}
+        fun(ProtoFiled, {Acc, Count}) ->
+            case ProtoFiled of
+                {Name, DataType, Note} ->
+                    GDataType = get_protobuf_type(DataType),
+                    {[io_lib:format("    ~s ~w = ~w; \/\/~s~n", [GDataType, Name, Count, Note])
+                        | Acc], Count - 1};
+                {Name, _DataType, _Defaule, _Note} ->
+                    erlang:throw({using_default_value_but_gpb_is_ban, Message, Name})
+            end
     end, {[], erlang:length(List)}, lists:reverse(List)),
     Fileds.
 
@@ -448,6 +453,7 @@ get_protobuf_type(bool) -> "bool";
 get_protobuf_type([int]) -> "repeated int32";
 get_protobuf_type([long]) -> "repeated int64";
 get_protobuf_type([string]) -> "repeated bytes";
+get_protobuf_type(binary) -> "bytes";
 get_protobuf_type([P]) -> lists:concat(["repeated ", P]);
 get_protobuf_type(P) -> P.
 
@@ -734,12 +740,15 @@ gen_all_error_no(ProtoList, ErrorList) ->
 %% =======================根据game_proto.proto生成gpb的hrl和erl==================================
 gen_gpb() ->
     setup_code_path(),
-    case filelib:is_file("./proto/game_proto.proto") of
-        true ->
-            gpb_compile:c([{i, "./proto/"}, {o_erl, "./src/proto/"}, {o_hrl, "./include/proto/"}], ["./proto/game_proto.proto"]),
+    ProtoFiles = filelib:wildcard("./proto/*.proto"),
+    case ProtoFiles of
+        [_|_] ->
+            gpb_compile:c([{i, "./proto/"}, {o_erl, "./src/proto/"}, {o_hrl, "./include/proto/"}], ProtoFiles),
             io:format("~s success~n", ["gen_gpb"]);
-        _ ->
-            io:format("Error: ~s.~n", ["can not find file: ./proto/game_proto.proto"]),
+        [] ->
+            io:format("~s success~n", ["gen_gpb"]);
+        Err ->
+            io:format("Error: ~s.~n", [Err]),
             show_usage(),
             halt(1)
     end.
